@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart Monitor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 20px; }
+        h1 { color: #38bdf8; margin-bottom: 4px; }
+        h2 { color: #94a3b8; font-size: 15px; margin: 28px 0 10px; }
+        .panels { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+        .card { background: #1e293b; border-radius: 10px; padding: 14px 20px; min-width: 160px; }
+        .card .label { color: #94a3b8; font-size: 12px; }
+        .card .value { font-size: 20px; font-weight: bold; margin-top: 4px; }
+        .value.db { color: #facc15; }
+        .value.cpu { color: #4ade80; }
+        .value.err { color: #f87171; }
+        .charts { display: flex; gap: 24px; margin-top: 20px; flex-wrap: wrap; }
+        .chart-box { background: #1e293b; border-radius: 10px; padding: 16px; flex: 1; min-width: 320px; max-width: 420px; }
+        .chart-box h3 { margin: 0 0 12px 0; color: #94a3b8; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #334155; font-size: 14px; }
+        th { background: #1e293b; color: #94a3b8; }
+        tr:hover { background: #1e293b; cursor: pointer; }
+        tr.selected { background: #27364d; }
+        .bottleneck { color: #f87171; font-weight: bold; }
+        .layer-SERVICE { color: #4ade80; }
+        .layer-REPOSITORY { color: #facc15; }
+        .layer-CONTROLLER { color: #60a5fa; }
+        .badge { padding: 2px 8px; border-radius: 8px; background: #334155; font-size: 12px; }
+        .type-DATABASE { color: #facc15; }
+        .type-CPU { color: #4ade80; }
+        .type-UNKNOWN { color: #94a3b8; }
+        .hint { color: #64748b; font-size: 12px; margin-top: 6px; }
+        #methodsSection { display: none; }
+        #methodsTitle { color: #38bdf8; }
+    </style>
+</head>
+<body>
+<h1>📊 Smart Monitor</h1>
+<div class="panels" id="panels"></div>
+
+<div class="charts">
+    <div class="chart-box">
+        <h3>⏱ Top Endpoints by Time</h3>
+        <canvas id="timeChart"></canvas>
+    </div>
+    <div class="chart-box">
+        <h3>🧠 Top Endpoints by Memory</h3>
+        <canvas id="memoryChart"></canvas>
+    </div>
+</div>
+
+<div id="aiSection" style="display:none; background:#1e293b; border-radius:10px; padding:16px; margin-top:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 style="margin:0; color:#38bdf8;">🤖 AI Analysis</h3>
+        <div>
+            <span id="aiTimestamp" style="color:#64748b; font-size:12px; margin-left:10px;"></span>
+            <button id="aiAnalyzeBtn" onclick="runAiAnalysis(false)"
+                    style="background:#38bdf8; color:#0f172a; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold;">
+                Analyze
+            </button>
+            <button id="aiRefreshBtn" onclick="runAiAnalysis(true)"
+                    style="background:#334155; color:#e2e8f0; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
+                Refresh
+            </button>
+        </div>
+    </div>
+    <div id="aiResults" style="margin-top:14px;"></div>
+</div>
+
+<h2>Endpoints (Top 10 by Total Time)</h2>
+<p class="hint">Click a row to see the internal methods behind it.</p>
+<table>
+    <thead>
+    <tr>
+        <th>Endpoint</th><th>Calls</th><th>Errors</th><th>Avg (ms)</th><th>Max (ms)</th><th>Total (ms)</th><th>DB Time (ms)</th><th>Memory (KB)</th>
+    </tr>
+    </thead>
+    <tbody id="endpointsBody"></tbody>
+</table>
+
+<div id="methodsSection">
+    <h2 id="methodsTitle">Methods inside: -</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>Class</th><th>Method</th><th>Layer</th><th>Calls</th><th>Errors</th>
+            <th>Self Time (ms)</th><th>Total (ms)</th><th>DB Time (ms)</th><th>Memory (KB)</th><th>Type</th>
+        </tr>
+        </thead>
+        <tbody id="methodsBody"></tbody>
+    </table>
+</div>
+
+<script>
+    const COLORS = ['#38bdf8', '#4ade80', '#facc15', '#f87171', '#a78bfa', '#fb923c', '#64748b'];
+    let timeChart, memoryChart;
+    let selectedEndpoint = null;
+
+    function renderDonut(ctx, existingChart, labels, values) {
+        if (existingChart) existingChart.destroy();
+        return new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data: values, backgroundColor: COLORS, borderColor: '#1e293b', borderWidth: 2 }] },
+            options: { plugins: { legend: { position: 'bottom', labels: { color: '#e2e8f0', font: { size: 11 } } } } }
+        });
+    }
+
+    function shortLabel(key) {
+        return key.replace('#', '.');
+    }
+
+    async function loadMethods(endpointKey) {
+        selectedEndpoint = endpointKey;
+        const res = await fetch('/monitor/api/endpoint-methods?key=' + encodeURIComponent(endpointKey));
+        const methods = await res.json();
+
+        document.getElementById('methodsSection').style.display = 'block';
+        document.getElementById('methodsTitle').innerText = 'Methods inside: ' + shortLabel(endpointKey);
+
+        const tbody = document.getElementById('methodsBody');
+        tbody.innerHTML = '';
+        const maxSelf = methods.length ? methods[0].selfTimeMs : 0;
+
+        methods.forEach(m => {
+            const tr = document.createElement('tr');
+            const isBottleneck = m.selfTimeMs === maxSelf && maxSelf > 0;
+            tr.innerHTML = `
+              <td>${m.className}</td>
+              <td>${m.methodName}</td>
+              <td class="layer-${m.layer}"><span class="badge">${m.layer}</span></td>
+              <td>${m.callCount}</td>
+              <td>${m.errorCount}</td>
+              <td class="${isBottleneck ? 'bottleneck' : ''}">${m.selfTimeMs} ${isBottleneck ? '⚠️' : ''}</td>
+              <td>${m.totalTimeMs}</td>
+              <td>${m.dbTimeMs}</td>
+              <td>${m.memoryKb}</td>
+              <td class="type-${m.bottleneckType}">${m.bottleneckType}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    async function refresh() {
+        const [overviewRes, endpointsRes] = await Promise.all([
+            fetch('/monitor/api/overview'),
+            fetch('/monitor/api/endpoints')
+        ]);
+        const overview = await overviewRes.json();
+        const endpoints = await endpointsRes.json();
+
+        document.getElementById('panels').innerHTML = `
+            <div class="card"><div class="label">Total Calls</div><div class="value">${overview.totalCalls}</div></div>
+            <div class="card"><div class="label">Total Errors</div><div class="value err">${overview.totalErrors}</div></div>
+            <div class="card"><div class="label">DB Time</div><div class="value db">${overview.dbTimeMs} ms</div></div>
+            <div class="card"><div class="label">CPU Time</div><div class="value cpu">${overview.cpuTimeMs} ms</div></div>
+            <div class="card"><div class="label">Top Bottleneck</div><div class="value">${overview.topBottlenecks.length ? shortLabel(overview.topBottlenecks[0].key) : '-'}</div></div>
+        `;
+
+        document.getElementById('aiSection').style.display = overview.aiEnabled ? 'block' : 'none';
+
+        timeChart = renderDonut(
+            document.getElementById('timeChart'), timeChart,
+            endpoints.map(e => shortLabel(e.key)), endpoints.map(e => e.totalTimeMs)
+        );
+        memoryChart = renderDonut(
+            document.getElementById('memoryChart'), memoryChart,
+            endpoints.map(e => shortLabel(e.key)), endpoints.map(e => e.memoryKb)
+        );
+
+        const tbody = document.getElementById('endpointsBody');
+        tbody.innerHTML = '';
+        endpoints.forEach(ep => {
+            const tr = document.createElement('tr');
+            if (ep.key === selectedEndpoint) tr.classList.add('selected');
+            tr.innerHTML = `
+              <td>${shortLabel(ep.key)}</td>
+              <td>${ep.callCount}</td>
+              <td>${ep.errorCount}</td>
+              <td>${ep.avgTimeMs}</td>
+              <td>${ep.maxTimeMs}</td>
+              <td>${ep.totalTimeMs}</td>
+              <td>${ep.dbTimeMs}</td>
+              <td>${ep.memoryKb}</td>
+            `;
+            tr.onclick = () => loadMethods(ep.key);
+            tbody.appendChild(tr);
+        });
+
+        if (selectedEndpoint) {
+            loadMethods(selectedEndpoint);
+        }
+    }
+
+    function severityColor(sev) {
+        if (sev === 'HIGH') return '#f87171';
+        if (sev === 'MEDIUM') return '#facc15';
+        return '#4ade80';
+    }
+
+    function renderAiResults(rawJson) {
+        const container = document.getElementById('aiResults');
+        let items;
+        try {
+            items = JSON.parse(rawJson);
+        } catch (e) {
+            container.innerHTML = `<pre style="white-space:pre-wrap; color:#94a3b8;">${rawJson}</pre>`;
+            return;
+        }
+        container.innerHTML = items.map(item => `
+            <div style="border-left:3px solid ${severityColor(item.severity)}; background:#0f172a; padding:10px 14px; margin-bottom:10px; border-radius:6px;">
+                <div style="display:flex; justify-content:space-between;">
+                    <strong>${item.endpoint || ''}</strong>
+                    <span style="color:${severityColor(item.severity)}; font-size:12px; font-weight:bold;">${item.severity || ''} · ${item.cause || ''}</span>
+                </div>
+                <div style="color:#e2e8f0; margin-top:6px; font-size:13px;">${item.issue || ''}</div>
+                <div style="color:#4ade80; margin-top:6px; font-size:13px;">💡 ${item.suggestion || ''}</div>
+            </div>
+        `).join('');
+    }
+
+    async function runAiAnalysis(forceRefresh) {
+        const btn = document.getElementById('aiAnalyzeBtn');
+        const refreshBtn = document.getElementById('aiRefreshBtn');
+        btn.disabled = true;
+        refreshBtn.disabled = true;
+        document.getElementById('aiResults').innerHTML = '<p style="color:#64748b;">Analyzing...</p>';
+
+        try {
+            const res = await fetch('/monitor/api/ai-analysis?refresh=' + forceRefresh, { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) {
+                document.getElementById('aiResults').innerHTML = `<p style="color:#f87171;">${data.error}</p>`;
+                return;
+            }
+            renderAiResults(data.rawJson);
+            document.getElementById('aiTimestamp').innerText = 'Generated: ' + new Date(data.generatedAtMillis).toLocaleTimeString();
+        } catch (e) {
+            document.getElementById('aiResults').innerHTML = `<p style="color:#f87171;">Request failed: ${e}</p>`;
+        } finally {
+            btn.disabled = false;
+            refreshBtn.disabled = false;
+        }
+    }
+
+    refresh();
+    setInterval(refresh, 3000);
+</script>
+</body>
+</html>
