@@ -1,5 +1,6 @@
 package com.issa.smartmonitor.model;
 
+import com.issa.smartmonitor.enums.BottleneckType;
 import lombok.Getter;
 
 import java.util.Collection;
@@ -62,5 +63,18 @@ public class EndpointStats {
 
     public Collection<MethodStats> getMethods() {
         return methods.values();
+    }
+
+    public String bottleneckType() {
+        double total = totalTimeMs();
+        if (total == 0) return BottleneckType.UNKNOWN.name();
+
+        double dbRatio = dbTimeMs() / total;
+        long calls = callCount.sum();
+        double errorRate = calls == 0 ? 0 : (double) errorCount.sum() / calls;
+
+        if (dbRatio > 0.4) return BottleneckType.DATABASE.name();
+        if (errorRate > 0.05) return BottleneckType.UNKNOWN.name();
+        return BottleneckType.CPU.name();
     }
 }
