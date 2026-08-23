@@ -24,10 +24,13 @@ public class MonitorController {
 
     private final MetricRegistry registry;
     private final AiAnalysisService aiAnalysisService; // may be null if AI is disabled
+    private final MetricHistory history;
 
-    public MonitorController(MetricRegistry registry, ObjectProvider<AiAnalysisService> aiAnalysisServiceProvider) {
+
+    public MonitorController(MetricRegistry registry, ObjectProvider<AiAnalysisService> aiAnalysisServiceProvider, MetricHistory history) {
         this.registry = registry;
         this.aiAnalysisService = aiAnalysisServiceProvider.getIfAvailable();
+        this.history = history;
     }
 
     @GetMapping(value = "/monitor/api/overview", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -143,5 +146,19 @@ public class MonitorController {
 
     private double round(double v) {
         return Math.round(v * 100.0) / 100.0;
+    }
+
+    @GetMapping(value = "/monitor/api/history", produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<Map<String, Object>> history() {
+        return history.getSnapshots().stream()
+                .map(s -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("time", s.getTimestampMillis());
+                    m.put("cpuTimeMsPerSec", s.getCpuTimeMsPerSec());
+                    m.put("dbTimeMsPerSec", s.getDbTimeMsPerSec());
+                    m.put("errorCount", s.getErrorCount());
+                    return m;
+                })
+                .collect(Collectors.toList());
     }
 }

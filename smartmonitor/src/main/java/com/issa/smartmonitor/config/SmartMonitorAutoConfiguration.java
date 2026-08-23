@@ -2,10 +2,7 @@ package com.issa.smartmonitor.config;
 
 import com.issa.smartmonitor.ai.AiAnalysisService;
 import com.issa.smartmonitor.aspect.MonitoringAspect;
-import com.issa.smartmonitor.core.MetricCleanupTask;
-import com.issa.smartmonitor.core.MetricRegistry;
-import com.issa.smartmonitor.core.MonitorController;
-import com.issa.smartmonitor.core.MonitorPageController;
+import com.issa.smartmonitor.core.*;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -30,8 +27,8 @@ public class SmartMonitorAutoConfiguration {
     }
 
     @Bean
-    public MonitorController monitorController(MetricRegistry registry, ObjectProvider<AiAnalysisService> aiAnalysisServiceProvider) {
-        return new MonitorController(registry, aiAnalysisServiceProvider);
+    public MonitorController monitorController(MetricRegistry registry, ObjectProvider<AiAnalysisService> aiAnalysisServiceProvider, MetricHistory metricHistory) {
+        return new MonitorController(registry, aiAnalysisServiceProvider, metricHistory);
     }
 
     @Bean
@@ -42,5 +39,15 @@ public class SmartMonitorAutoConfiguration {
     @Bean
     public MetricCleanupTask metricCleanupTask(MetricRegistry registry, SmartMonitorProperties properties) {
         return new MetricCleanupTask(registry, properties);
+    }
+
+    @Bean
+    public MetricHistory metricHistory() {
+        return new MetricHistory(60);
+    }
+
+    @Bean
+    public MetricSnapshotTask metricSnapshotTask(MetricRegistry registry, MetricHistory history) {
+        return new MetricSnapshotTask(registry, history);
     }
 }
