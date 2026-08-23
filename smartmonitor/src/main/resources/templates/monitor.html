@@ -15,8 +15,7 @@
         .value.db { color: #facc15; }
         .value.cpu { color: #4ade80; }
         .value.err { color: #f87171; }
-        .charts { display: flex; gap: 24px; margin-top: 20px; flex-wrap: wrap; }
-        .chart-box { background: #1e293b; border-radius: 10px; padding: 16px; flex: 1; min-width: 320px; max-width: 420px; }
+        .chart-box { background: #1e293b; border-radius: 10px; padding: 16px; }
         .chart-box h3 { margin: 0 0 12px 0; color: #94a3b8; font-size: 14px; }
         table { width: 100%; border-collapse: collapse; margin-top: 8px; }
         th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #334155; font-size: 14px; }
@@ -40,15 +39,14 @@
 <h1>📊 Smart Monitor</h1>
 <div class="panels" id="panels"></div>
 
-<div class="charts">
-    <div class="chart-box">
-        <h3>⏱ Top Endpoints by Time</h3>
-        <canvas id="timeChart"></canvas>
-    </div>
-    <div class="chart-box">
-        <h3>🧠 Top Endpoints by Memory</h3>
-        <canvas id="memoryChart"></canvas>
-    </div>
+<div class="chart-box" style="margin-top:20px;">
+    <h3>💓 Load Composition (CPU vs DB, per second)</h3>
+    <canvas id="heartbeatChart" height="45"></canvas>
+</div>
+
+<div class="chart-box" style="margin-top:20px;">
+    <h3>📊 Top 5 Endpoints by Total Time</h3>
+    <canvas id="rankChart" height="55"></canvas>
 </div>
 
 <div id="aiSection" style="display:none; background:#1e293b; border-radius:10px; padding:16px; margin-top:20px;">
@@ -94,22 +92,65 @@
 </div>
 
 <script>
-    const COLORS = ['#38bdf8', '#4ade80', '#facc15', '#f87171', '#a78bfa', '#fb923c', '#64748b'];
-    let timeChart, memoryChart;
+    let rankChart, heartbeatChart;
     let selectedEndpoint = null;
 
-    function renderOrUpdateDonut(ctx, existingChart, labels, values) {
-        if (existingChart) {
-            existingChart.data.labels = labels;
-            existingChart.data.datasets[0].data = values;
-            existingChart.update('none');
-            return existingChart;
+    function renderOrUpdateBar(labels, values) {
+        const ctx = document.getElementById('rankChart');
+        if (rankChart) {
+            rankChart.data.labels = labels;
+            rankChart.data.datasets[0].data = values;
+            rankChart.update('none');
+            return;
         }
-        return new Chart(ctx, {
-            type: 'doughnut',
-            data: { labels, datasets: [{ data: values, backgroundColor: COLORS, borderColor: '#1e293b', borderWidth: 2 }] },
-            options: { plugins: { legend: { position: 'bottom', labels: { color: '#e2e8f0', font: { size: 11 } } } } }
+        rankChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{ data: values, backgroundColor: '#38bdf8', borderRadius: 4 }]
+            },
+            options: {
+                indexAxis: 'y',
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+                    y: { grid: { display: false }, ticks: { color: '#e2e8f0', font: { size: 11 } } }
+                }
+            }
         });
+    }
+
+    function initHeartbeatChart() {
+        const ctx = document.getElementById('heartbeatChart');
+        heartbeatChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'CPU ms/s', data: [], borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.15)', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true, stack: 'load' },
+                    { label: 'DB ms/s', data: [], borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,0.15)', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true, stack: 'load' }
+                ]
+            },
+            options: {
+                animation: { duration: 300 },
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: { display: false },
+                    y: { stacked: true, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
+                },
+                plugins: { legend: { position: 'bottom', labels: { color: '#e2e8f0', font: { size: 11 } } } }
+            }
+        });
+    }
+
+    async function refreshHeartbeat() {
+        const res = await fetch('/monitor/api/history');
+        const points = await res.json();
+
+        heartbeatChart.data.labels = points.map(p => new Date(p.time).toLocaleTimeString());
+        heartbeatChart.data.datasets[0].data = points.map(p => p.cpuTimeMsPerSec);
+        heartbeatChart.data.datasets[1].data = points.map(p => p.dbTimeMsPerSec);
+        heartbeatChart.update('none');
     }
 
     function shortLabel(key) {
@@ -165,19 +206,15 @@
             <div class="card"><div class="label">DB Time</div><div class="value db">${overview.dbTimeMs} ms</div></div>
             <div class="card"><div class="label">CPU Time</div><div class="value cpu">${overview.cpuTimeMs} ms</div></div>
             <div class="card"><div class="label">🖥 Top CPU Bottleneck</div><div class="value cpu">${bottleneckLabel(overview.topCpuBottleneck)}</div></div>
-            <div class="card"><div class="label">💾 Top IO Bottleneck</div><div class="value db">${bottleneckLabel(overview.topDatabaseBottleneck)}</div></div>
-            <div class="card"><div class="label">⚠️ Top Other Bottleneck</div><div class="value err">${bottleneckLabel(overview.topUnknownBottleneck)}</div></div>
+            <div class="card"><div class="label">💾 Top IO Bottleneck</div><div class="value db">${bottleneckLabel(overview.topIoBottleneck)}</div></div>
+            <div class="card"><div class="label">⚠️ Top Other Bottleneck</div><div class="value err">${bottleneckLabel(overview.topOtherBottleneck)}</div></div>
         `;
 
         document.getElementById('aiSection').style.display = overview.aiEnabled ? 'block' : 'none';
 
-        timeChart = renderOrUpdateDonut(
-            document.getElementById('timeChart'), timeChart,
-            endpoints.map(e => shortLabel(e.key)), endpoints.map(e => e.totalTimeMs)
-        );
-        memoryChart = renderOrUpdateDonut(
-            document.getElementById('memoryChart'), memoryChart,
-            endpoints.map(e => shortLabel(e.key)), endpoints.map(e => e.memoryKb)
+        renderOrUpdateBar(
+            endpoints.slice(0, 5).map(e => shortLabel(e.key)),
+            endpoints.slice(0, 5).map(e => e.totalTimeMs)
         );
 
         const tbody = document.getElementById('endpointsBody');
@@ -202,6 +239,8 @@
         if (selectedEndpoint) {
             loadMethods(selectedEndpoint);
         }
+
+        refreshHeartbeat();
     }
 
     function severityColor(sev) {
@@ -255,6 +294,7 @@
         }
     }
 
+    initHeartbeatChart();
     refresh();
     setInterval(refresh, 3000);
 </script>
