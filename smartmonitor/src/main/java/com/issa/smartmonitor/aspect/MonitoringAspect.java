@@ -16,7 +16,9 @@ public class MonitoringAspect {
             "within(@org.springframework.stereotype.Repository *) || " +
             "within(@org.springframework.web.bind.annotation.RestController *) || " +
             "within(@org.springframework.stereotype.Controller *)) " +
-            "&& !within(com.issa.smartmonitor..*)")
+            "&& !within(com.issa.smartmonitor..*)" +
+            "&& !within(org.springdoc..*) " +
+            "&& !within(org.springframework.boot.actuate..*)")
     public Object monitor(ProceedingJoinPoint pjp) throws Throwable {
         String className = pjp.getTarget().getClass().getSimpleName();
         String methodName = pjp.getSignature().getName();

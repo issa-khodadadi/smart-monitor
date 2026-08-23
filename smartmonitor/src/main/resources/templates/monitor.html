@@ -98,8 +98,13 @@
     let timeChart, memoryChart;
     let selectedEndpoint = null;
 
-    function renderDonut(ctx, existingChart, labels, values) {
-        if (existingChart) existingChart.destroy();
+    function renderOrUpdateDonut(ctx, existingChart, labels, values) {
+        if (existingChart) {
+            existingChart.data.labels = labels;
+            existingChart.data.datasets[0].data = values;
+            existingChart.update('none');
+            return existingChart;
+        }
         return new Chart(ctx, {
             type: 'doughnut',
             data: { labels, datasets: [{ data: values, backgroundColor: COLORS, borderColor: '#1e293b', borderWidth: 2 }] },
@@ -109,6 +114,10 @@
 
     function shortLabel(key) {
         return key.replace('#', '.');
+    }
+
+    function bottleneckLabel(b) {
+        return b ? shortLabel(b.key) + ' (' + b.totalTimeMs + ' ms)' : '-';
     }
 
     async function loadMethods(endpointKey) {
@@ -155,16 +164,18 @@
             <div class="card"><div class="label">Total Errors</div><div class="value err">${overview.totalErrors}</div></div>
             <div class="card"><div class="label">DB Time</div><div class="value db">${overview.dbTimeMs} ms</div></div>
             <div class="card"><div class="label">CPU Time</div><div class="value cpu">${overview.cpuTimeMs} ms</div></div>
-            <div class="card"><div class="label">Top Bottleneck</div><div class="value">${overview.topBottlenecks.length ? shortLabel(overview.topBottlenecks[0].key) : '-'}</div></div>
+            <div class="card"><div class="label">🖥 Top CPU Bottleneck</div><div class="value cpu">${bottleneckLabel(overview.topCpuBottleneck)}</div></div>
+            <div class="card"><div class="label">💾 Top IO Bottleneck</div><div class="value db">${bottleneckLabel(overview.topDatabaseBottleneck)}</div></div>
+            <div class="card"><div class="label">⚠️ Top Other Bottleneck</div><div class="value err">${bottleneckLabel(overview.topUnknownBottleneck)}</div></div>
         `;
 
         document.getElementById('aiSection').style.display = overview.aiEnabled ? 'block' : 'none';
 
-        timeChart = renderDonut(
+        timeChart = renderOrUpdateDonut(
             document.getElementById('timeChart'), timeChart,
             endpoints.map(e => shortLabel(e.key)), endpoints.map(e => e.totalTimeMs)
         );
-        memoryChart = renderDonut(
+        memoryChart = renderOrUpdateDonut(
             document.getElementById('memoryChart'), memoryChart,
             endpoints.map(e => shortLabel(e.key)), endpoints.map(e => e.memoryKb)
         );

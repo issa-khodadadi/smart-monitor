@@ -2,6 +2,7 @@ package com.issa.smartmonitor.core;
 
 import com.issa.smartmonitor.ai.AiAnalysisResult;
 import com.issa.smartmonitor.ai.AiAnalysisService;
+import com.issa.smartmonitor.enums.BottleneckType;
 import com.issa.smartmonitor.model.EndpointStats;
 import com.issa.smartmonitor.model.MethodStats;
 import org.springframework.beans.factory.ObjectProvider;
@@ -42,6 +43,10 @@ public class MonitorController {
             memory += ep.memoryKb();
         }
 
+        Map<String, Object> topCpu = topBottleneckByType(BottleneckType.CPU.name());
+        Map<String, Object> topIo = topBottleneckByType(BottleneckType.DATABASE.name());
+        Map<String, Object> topOther = topBottleneckByType(BottleneckType.UNKNOWN.name());
+
         List<Map<String, Object>> topBottlenecks = registry.getEndpoints().stream()
                 .sorted(Comparator.comparingDouble(EndpointStats::totalTimeMs).reversed())
                 .limit(5)
@@ -55,9 +60,20 @@ public class MonitorController {
         result.put("dbTimeMs", round(dbTime));
         result.put("cpuTimeMs", round(Math.max(totalTime - dbTime, 0)));
         result.put("memoryKb", round(memory));
+        result.put("topCpuBottleneck", topCpu);
+        result.put("topDatabaseBottleneck", topIo);
+        result.put("topUnknownBottleneck", topOther);
         result.put("topBottlenecks", topBottlenecks);
         result.put("aiEnabled", aiAnalysisService != null && aiAnalysisService.isEnabled());
         return result;
+    }
+
+    private Map<String, Object> topBottleneckByType(String type) {
+        return registry.getEndpoints().stream()
+                .filter(ep -> type.equals(ep.bottleneckType()))
+                .max(Comparator.comparingDouble(EndpointStats::totalTimeMs))
+                .map(this::endpointSummary)
+                .orElse(null);
     }
 
     @GetMapping(value = "/monitor/api/endpoints", produces = MediaType.APPLICATION_JSON_VALUE)
