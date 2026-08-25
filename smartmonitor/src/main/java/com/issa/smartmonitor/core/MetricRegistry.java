@@ -1,6 +1,7 @@
 package com.issa.smartmonitor.core;
 
 import com.issa.smartmonitor.model.EndpointStats;
+import com.issa.smartmonitor.model.ErrorEntry;
 import com.issa.smartmonitor.model.MethodStats;
 
 import java.util.*;
@@ -17,6 +18,10 @@ public class MetricRegistry {
 
     private final int maxEndpoints;
     private final int maxMethodsPerEndpoint;
+
+    private final Deque<ErrorEntry> recentErrors = new ArrayDeque<>();
+    private final Object errorsLock = new Object();
+    private static final int MAX_ERRORS = 50;
 
     public MetricRegistry(int maxEndpoints, int maxMethodsPerEndpoint) {
         this.maxEndpoints = maxEndpoints;
@@ -100,6 +105,21 @@ public class MetricRegistry {
         if (!removedEndpointKeys.isEmpty()) {
             edgeTimeNanos.keySet().removeIf(edge -> removedEndpointKeys.stream().anyMatch(edge::startsWith));
             edgeCallCount.keySet().removeIf(edge -> removedEndpointKeys.stream().anyMatch(edge::startsWith));
+        }
+    }
+
+    public void recordError(String endpointKey, String className, String methodName, String exceptionType, String message) {
+        synchronized (errorsLock) {
+            recentErrors.addFirst(new ErrorEntry(System.currentTimeMillis(), endpointKey, className, methodName, exceptionType, message));
+            while (recentErrors.size() > MAX_ERRORS) {
+                recentErrors.removeLast();
+            }
+        }
+    }
+
+    public List<ErrorEntry> getRecentErrors() {
+        synchronized (errorsLock) {
+            return List.copyOf(recentErrors);
         }
     }
 }
