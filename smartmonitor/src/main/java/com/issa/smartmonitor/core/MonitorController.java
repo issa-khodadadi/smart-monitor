@@ -161,4 +161,24 @@ public class MonitorController {
                 })
                 .collect(Collectors.toList());
     }
+
+    @GetMapping(value = "/monitor/api/errors", produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<Map<String, Object>> errors() {
+        return registry.getRecentErrors().stream()
+                .map(e -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("time", e.getTimestampMillis());
+                    m.put("endpoint", shortLabelStatic(e.getEndpointKey()));
+                    m.put("method", e.getClassName() + "." + e.getMethodName());
+                    m.put("exceptionType", e.getExceptionType());
+                    m.put("message", e.getMessage());
+                    return m;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private String shortLabelStatic(String key) {
+        return key == null ? "-" : key.replace("#", ".");
+    }
+
 }

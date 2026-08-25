@@ -39,6 +39,11 @@
 <h1>📊 Smart Monitor</h1>
 <div class="panels" id="panels"></div>
 
+<div id="errorsSection" style="display:none; background:#1e293b; border-radius:10px; padding:16px; margin-top:20px;">
+    <h3 style="margin:0 0 12px 0; color:#f87171;">⚠️ Recent Errors</h3>
+    <div id="errorsList"></div>
+</div>
+
 <div class="chart-box" style="margin-top:20px;">
     <h3>💓 Load Composition (CPU vs DB, per second)</h3>
     <canvas id="heartbeatChart" height="45"></canvas>
@@ -94,7 +99,42 @@
 <script>
     let rankChart, heartbeatChart;
     let selectedEndpoint = null;
+    let errorsVisible = false;
 
+    async function toggleErrorsPanel() {
+        errorsVisible = !errorsVisible;
+        const section = document.getElementById('errorsSection');
+        section.style.display = errorsVisible ? 'block' : 'none';
+        if (errorsVisible) {
+            await loadErrors();
+        }
+    }
+
+<!--    error sectio-->
+    async function loadErrors() {
+        const res = await fetch('/monitor/api/errors');
+        const errors = await res.json();
+        const container = document.getElementById('errorsList');
+
+        if (errors.length === 0) {
+            container.innerHTML = '<p style="color:#64748b; font-size:13px;">No errors recorded.</p>';
+            return;
+        }
+
+        container.innerHTML = errors.map(e => `
+            <div style="border-left:3px solid #f87171; background:#0f172a; padding:8px 12px; margin-bottom:8px; border-radius:6px;">
+                <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8;">
+                    <span>${e.endpoint}</span>
+                    <span>${new Date(e.time).toLocaleTimeString()}</span>
+                </div>
+                <div style="color:#f87171; font-size:13px; margin-top:4px; font-weight:bold;">${e.exceptionType}</div>
+                <div style="color:#e2e8f0; font-size:12px; margin-top:2px;">${e.method}</div>
+                <div style="color:#94a3b8; font-size:12px; margin-top:2px;">${e.message || '(no message)'}</div>
+            </div>
+        `).join('');
+    }
+
+<!--    barchart-->
     function renderOrUpdateBar(labels, values) {
         const ctx = document.getElementById('rankChart');
         if (rankChart) {
@@ -120,6 +160,7 @@
         });
     }
 
+<!--    heartbeat chart-->
     function initHeartbeatChart() {
         const ctx = document.getElementById('heartbeatChart');
         heartbeatChart = new Chart(ctx, {
@@ -202,7 +243,8 @@
 
         document.getElementById('panels').innerHTML = `
             <div class="card"><div class="label">Total Calls</div><div class="value">${overview.totalCalls}</div></div>
-            <div class="card"><div class="label">Total Errors</div><div class="value err">${overview.totalErrors}</div></div>
+<!--            <div class="card"><div class="label">Total Errors</div><div class="value err">${overview.totalErrors}</div></div>-->
+            <div class="card" style="cursor:pointer;" onclick="toggleErrorsPanel()"><div class="label">Total Errors</div><div class="value err">${overview.totalErrors}</div></div>
             <div class="card"><div class="label">DB Time</div><div class="value db">${overview.dbTimeMs} ms</div></div>
             <div class="card"><div class="label">CPU Time</div><div class="value cpu">${overview.cpuTimeMs} ms</div></div>
             <div class="card"><div class="label">🖥 Top CPU Bottleneck</div><div class="value cpu">${bottleneckLabel(overview.topCpuBottleneck)}</div></div>
@@ -238,6 +280,9 @@
 
         if (selectedEndpoint) {
             loadMethods(selectedEndpoint);
+        }
+        if (errorsVisible) {
+            loadErrors();
         }
 
         refreshHeartbeat();

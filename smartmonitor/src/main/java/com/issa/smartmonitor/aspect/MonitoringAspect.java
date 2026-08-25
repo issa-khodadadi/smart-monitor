@@ -40,6 +40,7 @@ public class MonitoringAspect {
             return pjp.proceed();
         } catch (Throwable t) {
             isError = true;
+            registry.recordError(endpointKey, className, methodName, t.getClass().getSimpleName(), t.getMessage());
             throw t;
         } finally {
             long duration = System.nanoTime() - start;
