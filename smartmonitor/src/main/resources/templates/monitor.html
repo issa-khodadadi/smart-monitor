@@ -39,9 +39,14 @@
 <h1>📊 Smart Monitor</h1>
 <div class="panels" id="panels"></div>
 
-<div id="errorsSection" style="display:none; background:#1e293b; border-radius:10px; padding:16px; margin-top:20px;">
-    <h3 style="margin:0 0 12px 0; color:#f87171;">⚠️ Recent Errors</h3>
-    <div id="errorsList"></div>
+<div id="errorsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center;" onclick="closeErrorsModalOnBackdrop(event)">
+    <div style="background:#1e293b; border-radius:10px; width:90%; max-width:600px; max-height:70vh; display:flex; flex-direction:column; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h3 style="margin:0; color:#f87171;">⚠️ Recent Errors</h3>
+            <button onclick="toggleErrorsPanel()" style="background:#334155; color:#e2e8f0; border:none; padding:4px 10px; border-radius:6px; cursor:pointer;">✕</button>
+        </div>
+        <div id="errorsList" style="overflow-y:auto; flex:1;"></div>
+    </div>
 </div>
 
 <div class="chart-box" style="margin-top:20px;">
@@ -101,16 +106,22 @@
     let selectedEndpoint = null;
     let errorsVisible = false;
 
+<!--    error sectio-->
+    function closeErrorsModalOnBackdrop(event) {
+        if (event.target.id === 'errorsModal') {
+            toggleErrorsPanel();
+        }
+    }
+
     async function toggleErrorsPanel() {
         errorsVisible = !errorsVisible;
-        const section = document.getElementById('errorsSection');
-        section.style.display = errorsVisible ? 'block' : 'none';
+        const modal = document.getElementById('errorsModal');
+        modal.style.display = errorsVisible ? 'flex' : 'none';
         if (errorsVisible) {
             await loadErrors();
         }
     }
 
-<!--    error sectio-->
     async function loadErrors() {
         const res = await fetch('/monitor/api/errors');
         const errors = await res.json();
