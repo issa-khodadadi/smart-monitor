@@ -2,352 +2,460 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Smart Monitor</title>
+    <title>SmartMonitor</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; padding: 20px; }
-        h1 { color: #38bdf8; margin-bottom: 4px; }
-        h2 { color: #94a3b8; font-size: 15px; margin: 28px 0 10px; }
-        .panels { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
-        .card { background: #1e293b; border-radius: 10px; padding: 14px 20px; min-width: 160px; }
-        .card .label { color: #94a3b8; font-size: 12px; }
-        .card .value { font-size: 20px; font-weight: bold; margin-top: 4px; }
-        .value.db { color: #facc15; }
-        .value.cpu { color: #4ade80; }
-        .value.err { color: #f87171; }
-        .chart-box { background: #1e293b; border-radius: 10px; padding: 16px; }
-        .chart-box h3 { margin: 0 0 12px 0; color: #94a3b8; font-size: 14px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-        th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #334155; font-size: 14px; }
-        th { background: #1e293b; color: #94a3b8; }
-        tr:hover { background: #1e293b; cursor: pointer; }
-        tr.selected { background: #27364d; }
-        .bottleneck { color: #f87171; font-weight: bold; }
-        .layer-SERVICE { color: #4ade80; }
-        .layer-REPOSITORY { color: #facc15; }
-        .layer-CONTROLLER { color: #60a5fa; }
-        .badge { padding: 2px 8px; border-radius: 8px; background: #334155; font-size: 12px; }
-        .type-DATABASE { color: #facc15; }
-        .type-CPU { color: #4ade80; }
-        .type-UNKNOWN { color: #94a3b8; }
-        .hint { color: #64748b; font-size: 12px; margin-top: 6px; }
-        #methodsSection { display: none; }
-        #methodsTitle { color: #38bdf8; }
+        :root {
+          --bg: #0a0d12;
+          --surface: #12161e;
+          --surface-raised: #171c26;
+          --border: #1f2530;
+          --border-strong: #2a3140;
+          --text: #e4e7ec;
+          --text-muted: #6b7280;
+          --text-dim: #4b5563;
+          --cpu: #3fb1ce;
+          --db: #e0a640;
+          --err: #e0596a;
+          --ok: #4fc98a;
+          --radius: 6px;
+          --mono: 'JetBrains Mono', ui-monospace, monospace;
+        }
+        * { box-sizing: border-box; }
+        body {
+          font-family: 'Inter', -apple-system, sans-serif;
+          background: var(--bg);
+          color: var(--text);
+          margin: 0;
+          padding: 0;
+          font-size: 14px;
+          -webkit-font-smoothing: antialiased;
+        }
+        .shell { max-width: 1280px; margin: 0 auto; padding: 28px 32px 64px; }
+
+        /* Header */
+        .topbar { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+        .topbar h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; margin: 0; color: var(--text); }
+        .topbar .brand-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background: var(--ok); margin-right:8px; box-shadow: 0 0 0 3px rgba(79,201,138,0.15); }
+        .topbar .sub { color: var(--text-muted); font-size: 12px; font-family: var(--mono); }
+
+        /* Stat cards */
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 28px; }
+        .stat { background: var(--surface); padding: 14px 16px; cursor: default; transition: background 0.15s; }
+        .stat.clickable { cursor: pointer; }
+        .stat.clickable:hover { background: var(--surface-raised); }
+        .stat .stat-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 6px; }
+        .stat .stat-value { font-family: var(--mono); font-size: 19px; font-weight: 600; color: var(--text); line-height: 1.2; }
+        .stat .stat-value.small { font-size: 13px; font-weight: 500; }
+        .stat .stat-value.cpu { color: var(--cpu); }
+        .stat .stat-value.db { color: var(--db); }
+        .stat .stat-value.err { color: var(--err); }
+        .stat .stat-sub { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+        /* Section headers */
+        .section { margin-bottom: 28px; }
+        .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        .section-head h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0; }
+        .section-head .hint { font-size: 11.5px; color: var(--text-dim); }
+
+        .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+        .panel-pad { padding: 16px; }
+
+        .charts-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+        @media (max-width: 860px) { .charts-row { grid-template-columns: 1fr; } }
+
+        /* Table */
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 500; padding: 10px 14px; border-bottom: 1px solid var(--border-strong); background: var(--surface-raised); }
+        td { padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+        td.mono, th.num { font-family: var(--mono); }
+        th.num { text-align: right; }
+        td.num { text-align: right; font-family: var(--mono); color: var(--text); }
+        tr.row-clickable { cursor: pointer; }
+        tr.row-clickable:hover td { background: var(--surface-raised); }
+        tr.row-selected td { background: #16202a; }
+        tbody tr:last-child td { border-bottom: none; }
+
+        .name-cell { color: var(--text); }
+        .name-cell .method { color: var(--text-muted); }
+
+        .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 500; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.02em; }
+        .pill .dot { width: 5px; height: 5px; border-radius: 50%; }
+        .pill-service { color: var(--ok); background: rgba(79,201,138,0.1); }
+        .pill-service .dot { background: var(--ok); }
+        .pill-repository { color: var(--db); background: rgba(224,166,64,0.1); }
+        .pill-repository .dot { background: var(--db); }
+        .pill-controller { color: var(--cpu); background: rgba(63,177,206,0.1); }
+        .pill-controller .dot { background: var(--cpu); }
+        .pill-other { color: var(--text-muted); background: rgba(107,114,128,0.1); }
+        .pill-other .dot { background: var(--text-muted); }
+
+        .type-tag { font-family: var(--mono); font-size: 11px; font-weight: 500; }
+        .type-tag.database { color: var(--db); }
+        .type-tag.cpu { color: var(--cpu); }
+        .type-tag.unknown { color: var(--text-muted); }
+
+        .hot { color: var(--err); font-weight: 600; }
+
+        #methodsSection { display: none; margin-top: 16px; }
+
+        /* AI panel */
+        #aiSection { display: none; }
+        .ai-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+        .ai-head-left { display: flex; align-items: center; gap: 8px; }
+        .ai-head-left h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0; }
+        .btn { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; border: 1px solid var(--border-strong); background: var(--surface-raised); color: var(--text); padding: 6px 12px; border-radius: 5px; cursor: pointer; transition: border-color 0.15s; }
+        .btn:hover { border-color: var(--cpu); }
+        .btn:disabled { opacity: 0.5; cursor: default; }
+        .btn-primary { background: var(--cpu); border-color: var(--cpu); color: #06222c; font-weight: 600; }
+        .btn-primary:hover { border-color: var(--cpu); opacity: 0.9; }
+        .timestamp { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-right: 10px; }
+
+        .finding { border-left: 2px solid var(--border-strong); padding: 10px 14px; margin: 10px 16px; border-radius: 0 4px 4px 0; background: var(--surface-raised); }
+        .finding.sev-high { border-left-color: var(--err); }
+        .finding.sev-medium { border-left-color: var(--db); }
+        .finding.sev-low { border-left-color: var(--ok); }
+        .finding-top { display: flex; justify-content: space-between; align-items: baseline; }
+        .finding-endpoint { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+        .finding-meta { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+        .finding-issue { font-size: 12.5px; color: var(--text-muted); margin-top: 5px; }
+        .finding-suggestion { font-size: 12.5px; color: var(--ok); margin-top: 5px; }
+
+        /* Modal */
+        .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 1000; align-items: center; justify-content: center; }
+        .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); width: 92%; max-width: 620px; max-height: 72vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+        .modal-head h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--err); }
+        .modal-body { overflow-y: auto; padding: 12px 16px; }
+        .err-item { border-left: 2px solid var(--err); background: var(--surface-raised); padding: 8px 12px; margin-bottom: 8px; border-radius: 0 4px 4px 0; }
+        .err-item-top { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 11px; color: var(--text-muted); }
+        .err-item-type { color: var(--err); font-size: 12.5px; font-weight: 600; margin-top: 4px; font-family: var(--mono); }
+        .err-item-method { color: var(--text); font-size: 12px; margin-top: 2px; }
+        .err-item-msg { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+        .empty-note { color: var(--text-dim); font-size: 12.5px; text-align: center; padding: 24px 0; }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
     </style>
 </head>
 <body>
-<h1>📊 Smart Monitor</h1>
-<div class="panels" id="panels"></div>
+<div class="shell">
 
-<div id="errorsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:1000; align-items:center; justify-content:center;" onclick="closeErrorsModalOnBackdrop(event)">
-    <div style="background:#1e293b; border-radius:10px; width:90%; max-width:600px; max-height:70vh; display:flex; flex-direction:column; padding:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-            <h3 style="margin:0; color:#f87171;">⚠️ Recent Errors</h3>
-            <button onclick="toggleErrorsPanel()" style="background:#334155; color:#e2e8f0; border:none; padding:4px 10px; border-radius:6px; cursor:pointer;">✕</button>
-        </div>
-        <div id="errorsList" style="overflow-y:auto; flex:1;"></div>
+    <div class="topbar">
+        <h1><span class="brand-dot"></span>SmartMonitor</h1>
+        <span class="sub" id="liveClock">—</span>
     </div>
-</div>
 
-<div class="chart-box" style="margin-top:20px;">
-    <h3>💓 Load Composition (CPU vs DB, per second)</h3>
-    <canvas id="heartbeatChart" height="45"></canvas>
-</div>
+    <div class="stat-grid" id="panels"></div>
 
-<div class="chart-box" style="margin-top:20px;">
-    <h3>📊 Top 5 Endpoints by Total Time</h3>
-    <canvas id="rankChart" height="55"></canvas>
-</div>
-
-<div id="aiSection" style="display:none; background:#1e293b; border-radius:10px; padding:16px; margin-top:20px;">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-        <h3 style="margin:0; color:#38bdf8;">🤖 AI Analysis</h3>
-        <div>
-            <span id="aiTimestamp" style="color:#64748b; font-size:12px; margin-left:10px;"></span>
-            <button id="aiAnalyzeBtn" onclick="runAiAnalysis(false)"
-                    style="background:#38bdf8; color:#0f172a; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:bold;">
-                Analyze
-            </button>
-            <button id="aiRefreshBtn" onclick="runAiAnalysis(true)"
-                    style="background:#334155; color:#e2e8f0; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
-                Refresh
-            </button>
+    <div class="section">
+        <div class="section-head">
+            <h2>Load composition</h2>
+            <span class="hint">CPU vs. database time, per second</span>
+        </div>
+        <div class="charts-row">
+            <div class="panel panel-pad">
+                <canvas id="heartbeatChart" height="70"></canvas>
+            </div>
+            <div class="panel panel-pad">
+                <canvas id="rankChart" height="70"></canvas>
+            </div>
         </div>
     </div>
-    <div id="aiResults" style="margin-top:14px;"></div>
+
+    <div class="section" id="aiSectionWrap" style="display:none;">
+        <div class="panel" id="aiSection">
+            <div class="ai-head">
+                <div class="ai-head-left"><h2>AI Analysis</h2></div>
+                <div>
+                    <span class="timestamp" id="aiTimestamp"></span>
+                    <button class="btn" id="aiRefreshBtn" onclick="runAiAnalysis(true)">Refresh</button>
+                    <button class="btn btn-primary" id="aiAnalyzeBtn" onclick="runAiAnalysis(false)">Analyze</button>
+                </div>
+            </div>
+            <div id="aiResults"></div>
+        </div>
+    </div>
+
+    <div class="section">
+        <div class="section-head">
+            <h2>Endpoints</h2>
+            <span class="hint">Top 10 by total time — click a row to inspect</span>
+        </div>
+        <div class="panel">
+            <table>
+                <thead>
+                <tr>
+                    <th>Endpoint</th><th class="num">Calls</th><th class="num">Errors</th><th class="num">Avg&nbsp;ms</th><th class="num">Max&nbsp;ms</th><th class="num">Total&nbsp;ms</th><th class="num">DB&nbsp;ms</th><th class="num">Mem&nbsp;KB</th>
+                </tr>
+                </thead>
+                <tbody id="endpointsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="section" id="methodsSection">
+        <div class="section-head">
+            <h2 id="methodsTitle">Methods</h2>
+        </div>
+        <div class="panel">
+            <table>
+                <thead>
+                <tr>
+                    <th>Method</th><th>Layer</th><th class="num">Calls</th><th class="num">Errors</th><th class="num">Self&nbsp;ms</th><th class="num">Total&nbsp;ms</th><th class="num">DB&nbsp;ms</th><th class="num">Mem&nbsp;KB</th><th class="num">Type</th>
+                </tr>
+                </thead>
+                <tbody id="methodsBody"></tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 
-<h2>Endpoints (Top 10 by Total Time)</h2>
-<p class="hint">Click a row to see the internal methods behind it.</p>
-<table>
-    <thead>
-    <tr>
-        <th>Endpoint</th><th>Calls</th><th>Errors</th><th>Avg (ms)</th><th>Max (ms)</th><th>Total (ms)</th><th>DB Time (ms)</th><th>Memory (KB)</th>
-    </tr>
-    </thead>
-    <tbody id="endpointsBody"></tbody>
-</table>
-
-<div id="methodsSection">
-    <h2 id="methodsTitle">Methods inside: -</h2>
-    <table>
-        <thead>
-        <tr>
-            <th>Class</th><th>Method</th><th>Layer</th><th>Calls</th><th>Errors</th>
-            <th>Self Time (ms)</th><th>Total (ms)</th><th>DB Time (ms)</th><th>Memory (KB)</th><th>Type</th>
-        </tr>
-        </thead>
-        <tbody id="methodsBody"></tbody>
-    </table>
+<div class="modal-backdrop" id="errorsModal" onclick="closeErrorsModalOnBackdrop(event)">
+    <div class="modal">
+        <div class="modal-head">
+            <h3>Recent errors</h3>
+            <button class="btn" onclick="toggleErrorsPanel()">Close</button>
+        </div>
+        <div class="modal-body" id="errorsList"></div>
+    </div>
 </div>
 
 <script>
+    const COLOR = { cpu: '#3fb1ce', db: '#e0a640', err: '#e0596a', ok: '#4fc98a', muted: '#6b7280', grid: '#1f2530' };
+
     let rankChart, heartbeatChart;
     let selectedEndpoint = null;
     let errorsVisible = false;
 
-<!--    error sectio-->
-    function closeErrorsModalOnBackdrop(event) {
-        if (event.target.id === 'errorsModal') {
-            toggleErrorsPanel();
-        }
+    function shortLabel(key) { return key ? key.replace('#', '.') : '-'; }
+    function bottleneckLabel(b) { return b ? shortLabel(b.key) + '  ·  ' + b.totalTimeMs + ' ms' : '—'; }
+
+    function layerPill(layer) {
+      const cls = { SERVICE: 'pill-service', REPOSITORY: 'pill-repository', CONTROLLER: 'pill-controller' }[layer] || 'pill-other';
+      return `<span class="pill ${cls}"><span class="dot"></span>${layer}</span>`;
     }
 
-    async function toggleErrorsPanel() {
-        errorsVisible = !errorsVisible;
-        const modal = document.getElementById('errorsModal');
-        modal.style.display = errorsVisible ? 'flex' : 'none';
-        if (errorsVisible) {
-            await loadErrors();
-        }
+    function updateClock() {
+      document.getElementById('liveClock').textContent = new Date().toLocaleTimeString();
     }
+    setInterval(updateClock, 1000);
+    updateClock();
 
-    async function loadErrors() {
-        const res = await fetch('/monitor/api/errors');
-        const errors = await res.json();
-        const container = document.getElementById('errorsList');
-
-        if (errors.length === 0) {
-            container.innerHTML = '<p style="color:#64748b; font-size:13px;">No errors recorded.</p>';
-            return;
-        }
-
-        container.innerHTML = errors.map(e => `
-            <div style="border-left:3px solid #f87171; background:#0f172a; padding:8px 12px; margin-bottom:8px; border-radius:6px;">
-                <div style="display:flex; justify-content:space-between; font-size:12px; color:#94a3b8;">
-                    <span>${e.endpoint}</span>
-                    <span>${new Date(e.time).toLocaleTimeString()}</span>
-                </div>
-                <div style="color:#f87171; font-size:13px; margin-top:4px; font-weight:bold;">${e.exceptionType}</div>
-                <div style="color:#e2e8f0; font-size:12px; margin-top:2px;">${e.method}</div>
-                <div style="color:#94a3b8; font-size:12px; margin-top:2px;">${e.message || '(no message)'}</div>
-            </div>
-        `).join('');
-    }
-
-<!--    barchart-->
     function renderOrUpdateBar(labels, values) {
-        const ctx = document.getElementById('rankChart');
-        if (rankChart) {
-            rankChart.data.labels = labels;
-            rankChart.data.datasets[0].data = values;
-            rankChart.update('none');
-            return;
+      const ctx = document.getElementById('rankChart');
+      if (rankChart) {
+        rankChart.data.labels = labels;
+        rankChart.data.datasets[0].data = values;
+        rankChart.update('none');
+        return;
+      }
+      rankChart = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets: [{ data: values, backgroundColor: COLOR.cpu, borderRadius: 3, barThickness: 14 }] },
+        options: {
+          indexAxis: 'y',
+          plugins: { legend: { display: false }, title: { display: true, text: 'Top 5 endpoints (ms)', color: COLOR.muted, font: { size: 11, weight: '500' }, align: 'start', padding: { bottom: 10 } } },
+          scales: {
+            x: { grid: { color: COLOR.grid }, ticks: { color: COLOR.muted, font: { family: "'JetBrains Mono'", size: 10.5 } } },
+            y: { grid: { display: false }, ticks: { color: '#e4e7ec', font: { size: 11 } } }
+          }
         }
-        rankChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels,
-                datasets: [{ data: values, backgroundColor: '#38bdf8', borderRadius: 4 }]
-            },
-            options: {
-                indexAxis: 'y',
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
-                    y: { grid: { display: false }, ticks: { color: '#e2e8f0', font: { size: 11 } } }
-                }
-            }
-        });
+      });
     }
 
-<!--    heartbeat chart-->
     function initHeartbeatChart() {
-        const ctx = document.getElementById('heartbeatChart');
-        heartbeatChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [],
-                datasets: [
-                    { label: 'CPU ms/s', data: [], borderColor: '#4ade80', backgroundColor: 'rgba(74,222,128,0.15)', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true, stack: 'load' },
-                    { label: 'DB ms/s', data: [], borderColor: '#facc15', backgroundColor: 'rgba(250,204,21,0.15)', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true, stack: 'load' }
-                ]
-            },
-            options: {
-                animation: { duration: 300 },
-                interaction: { mode: 'index', intersect: false },
-                scales: {
-                    x: { display: false },
-                    y: { stacked: true, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8', font: { size: 10 } } }
-                },
-                plugins: { legend: { position: 'bottom', labels: { color: '#e2e8f0', font: { size: 11 } } } }
-            }
-        });
+      const ctx = document.getElementById('heartbeatChart');
+      heartbeatChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'CPU ms/s', data: [], borderColor: COLOR.cpu, backgroundColor: 'rgba(63,177,206,0.12)', borderWidth: 1.5, pointRadius: 0, tension: 0.25, fill: true, stack: 'load' },
+            { label: 'DB ms/s', data: [], borderColor: COLOR.db, backgroundColor: 'rgba(224,166,64,0.12)', borderWidth: 1.5, pointRadius: 0, tension: 0.25, fill: true, stack: 'load' }
+          ]
+        },
+        options: {
+          animation: { duration: 250 },
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            title: { display: true, text: 'CPU vs. DB (ms/s)', color: COLOR.muted, font: { size: 11, weight: '500' }, align: 'start', padding: { bottom: 10 } },
+            legend: { position: 'bottom', labels: { color: '#9aa3b2', font: { size: 10.5 }, boxWidth: 10, boxHeight: 10 } }
+          },
+          scales: {
+            x: { display: false },
+            y: { stacked: true, grid: { color: COLOR.grid }, ticks: { color: COLOR.muted, font: { family: "'JetBrains Mono'", size: 10 } } }
+          }
+        }
+      });
     }
 
     async function refreshHeartbeat() {
-        const res = await fetch('/monitor/api/history');
-        const points = await res.json();
-
-        heartbeatChart.data.labels = points.map(p => new Date(p.time).toLocaleTimeString());
-        heartbeatChart.data.datasets[0].data = points.map(p => p.cpuTimeMsPerSec);
-        heartbeatChart.data.datasets[1].data = points.map(p => p.dbTimeMsPerSec);
-        heartbeatChart.update('none');
-    }
-
-    function shortLabel(key) {
-        return key.replace('#', '.');
-    }
-
-    function bottleneckLabel(b) {
-        return b ? shortLabel(b.key) + ' (' + b.totalTimeMs + ' ms)' : '-';
+      const res = await fetch('/monitor/api/history');
+      const points = await res.json();
+      heartbeatChart.data.labels = points.map(p => new Date(p.time).toLocaleTimeString());
+      heartbeatChart.data.datasets[0].data = points.map(p => p.cpuTimeMsPerSec);
+      heartbeatChart.data.datasets[1].data = points.map(p => p.dbTimeMsPerSec);
+      heartbeatChart.update('none');
     }
 
     async function loadMethods(endpointKey) {
-        selectedEndpoint = endpointKey;
-        const res = await fetch('/monitor/api/endpoint-methods?key=' + encodeURIComponent(endpointKey));
-        const methods = await res.json();
+      selectedEndpoint = endpointKey;
+      const res = await fetch('/monitor/api/endpoint-methods?key=' + encodeURIComponent(endpointKey));
+      const methods = await res.json();
 
-        document.getElementById('methodsSection').style.display = 'block';
-        document.getElementById('methodsTitle').innerText = 'Methods inside: ' + shortLabel(endpointKey);
+      document.getElementById('methodsSection').style.display = 'block';
+      document.getElementById('methodsTitle').innerHTML = 'Methods inside <span style="font-family:var(--mono); color:var(--text); text-transform:none; letter-spacing:0;">' + shortLabel(endpointKey) + '</span>';
 
-        const tbody = document.getElementById('methodsBody');
-        tbody.innerHTML = '';
-        const maxSelf = methods.length ? methods[0].selfTimeMs : 0;
+      const tbody = document.getElementById('methodsBody');
+      tbody.innerHTML = '';
+      const maxSelf = methods.length ? methods[0].selfTimeMs : 0;
 
-        methods.forEach(m => {
-            const tr = document.createElement('tr');
-            const isBottleneck = m.selfTimeMs === maxSelf && maxSelf > 0;
-            tr.innerHTML = `
-              <td>${m.className}</td>
-              <td>${m.methodName}</td>
-              <td class="layer-${m.layer}"><span class="badge">${m.layer}</span></td>
-              <td>${m.callCount}</td>
-              <td>${m.errorCount}</td>
-              <td class="${isBottleneck ? 'bottleneck' : ''}">${m.selfTimeMs} ${isBottleneck ? '⚠️' : ''}</td>
-              <td>${m.totalTimeMs}</td>
-              <td>${m.dbTimeMs}</td>
-              <td>${m.memoryKb}</td>
-              <td class="type-${m.bottleneckType}">${m.bottleneckType}</td>
-            `;
-            tbody.appendChild(tr);
-        });
+      methods.forEach(m => {
+        const tr = document.createElement('tr');
+        const isHot = m.selfTimeMs === maxSelf && maxSelf > 0;
+        tr.innerHTML = `
+          <td class="name-cell"><span class="method">${m.className}.</span>${m.methodName}</td>
+          <td>${layerPill(m.layer)}</td>
+          <td class="num">${m.callCount}</td>
+          <td class="num">${m.errorCount}</td>
+          <td class="num ${isHot ? 'hot' : ''}">${m.selfTimeMs}</td>
+          <td class="num">${m.totalTimeMs}</td>
+          <td class="num">${m.dbTimeMs}</td>
+          <td class="num">${m.memoryKb}</td>
+          <td class="num"><span class="type-tag ${m.bottleneckType.toLowerCase()}">${m.bottleneckType}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
     }
 
     async function refresh() {
-        const [overviewRes, endpointsRes] = await Promise.all([
-            fetch('/monitor/api/overview'),
-            fetch('/monitor/api/endpoints')
-        ]);
-        const overview = await overviewRes.json();
-        const endpoints = await endpointsRes.json();
+      const [overviewRes, endpointsRes] = await Promise.all([
+        fetch('/monitor/api/overview'),
+        fetch('/monitor/api/endpoints')
+      ]);
+      const overview = await overviewRes.json();
+      const endpoints = await endpointsRes.json();
 
-        document.getElementById('panels').innerHTML = `
-            <div class="card"><div class="label">Total Calls</div><div class="value">${overview.totalCalls}</div></div>
-<!--            <div class="card"><div class="label">Total Errors</div><div class="value err">${overview.totalErrors}</div></div>-->
-            <div class="card" style="cursor:pointer;" onclick="toggleErrorsPanel()"><div class="label">Total Errors</div><div class="value err">${overview.totalErrors}</div></div>
-            <div class="card"><div class="label">DB Time</div><div class="value db">${overview.dbTimeMs} ms</div></div>
-            <div class="card"><div class="label">CPU Time</div><div class="value cpu">${overview.cpuTimeMs} ms</div></div>
-            <div class="card"><div class="label">🖥 Top CPU Bottleneck</div><div class="value cpu">${bottleneckLabel(overview.topCpuBottleneck)}</div></div>
-            <div class="card"><div class="label">💾 Top IO Bottleneck</div><div class="value db">${bottleneckLabel(overview.topIoBottleneck)}</div></div>
-            <div class="card"><div class="label">⚠️ Top Other Bottleneck</div><div class="value err">${bottleneckLabel(overview.topOtherBottleneck)}</div></div>
+      document.getElementById('panels').innerHTML = `
+        <div class="stat"><div class="stat-label">Total calls</div><div class="stat-value">${overview.totalCalls}</div></div>
+        <div class="stat clickable" onclick="toggleErrorsPanel()"><div class="stat-label">Errors</div><div class="stat-value err">${overview.totalErrors}</div></div>
+        <div class="stat"><div class="stat-label">DB time</div><div class="stat-value db">${overview.dbTimeMs}<span style="font-size:11px;color:var(--text-dim);"> ms</span></div></div>
+        <div class="stat"><div class="stat-label">CPU time</div><div class="stat-value cpu">${overview.cpuTimeMs}<span style="font-size:11px;color:var(--text-dim);"> ms</span></div></div>
+        <div class="stat"><div class="stat-label">Top CPU bottleneck</div><div class="stat-value small cpu">${bottleneckLabel(overview.topCpuBottleneck)}</div></div>
+        <div class="stat"><div class="stat-label">Top IO bottleneck</div><div class="stat-value small db">${bottleneckLabel(overview.topIoBottleneck)}</div></div>
+        <div class="stat"><div class="stat-label">Top other bottleneck</div><div class="stat-value small err">${bottleneckLabel(overview.topOtherBottleneck)}</div></div>
+      `;
+
+      document.getElementById('aiSectionWrap').style.display = overview.aiEnabled ? 'block' : 'none';
+
+      renderOrUpdateBar(
+        endpoints.slice(0, 5).map(e => shortLabel(e.key)),
+        endpoints.slice(0, 5).map(e => e.totalTimeMs)
+      );
+
+      const tbody = document.getElementById('endpointsBody');
+      tbody.innerHTML = '';
+      endpoints.forEach(ep => {
+        const tr = document.createElement('tr');
+        tr.className = 'row-clickable' + (ep.key === selectedEndpoint ? ' row-selected' : '');
+        tr.innerHTML = `
+          <td class="name-cell mono">${shortLabel(ep.key)}</td>
+          <td class="num">${ep.callCount}</td>
+          <td class="num">${ep.errorCount}</td>
+          <td class="num">${ep.avgTimeMs}</td>
+          <td class="num">${ep.maxTimeMs}</td>
+          <td class="num">${ep.totalTimeMs}</td>
+          <td class="num">${ep.dbTimeMs}</td>
+          <td class="num">${ep.memoryKb}</td>
         `;
+        tr.onclick = () => loadMethods(ep.key);
+        tbody.appendChild(tr);
+      });
 
-        document.getElementById('aiSection').style.display = overview.aiEnabled ? 'block' : 'none';
-
-        renderOrUpdateBar(
-            endpoints.slice(0, 5).map(e => shortLabel(e.key)),
-            endpoints.slice(0, 5).map(e => e.totalTimeMs)
-        );
-
-        const tbody = document.getElementById('endpointsBody');
-        tbody.innerHTML = '';
-        endpoints.forEach(ep => {
-            const tr = document.createElement('tr');
-            if (ep.key === selectedEndpoint) tr.classList.add('selected');
-            tr.innerHTML = `
-              <td>${shortLabel(ep.key)}</td>
-              <td>${ep.callCount}</td>
-              <td>${ep.errorCount}</td>
-              <td>${ep.avgTimeMs}</td>
-              <td>${ep.maxTimeMs}</td>
-              <td>${ep.totalTimeMs}</td>
-              <td>${ep.dbTimeMs}</td>
-              <td>${ep.memoryKb}</td>
-            `;
-            tr.onclick = () => loadMethods(ep.key);
-            tbody.appendChild(tr);
-        });
-
-        if (selectedEndpoint) {
-            loadMethods(selectedEndpoint);
-        }
-        if (errorsVisible) {
-            loadErrors();
-        }
-
-        refreshHeartbeat();
+      if (selectedEndpoint) loadMethods(selectedEndpoint);
+      refreshHeartbeat();
+      if (errorsVisible) loadErrors();
     }
 
-    function severityColor(sev) {
-        if (sev === 'HIGH') return '#f87171';
-        if (sev === 'MEDIUM') return '#facc15';
-        return '#4ade80';
+    function closeErrorsModalOnBackdrop(event) {
+      if (event.target.id === 'errorsModal') toggleErrorsPanel();
+    }
+
+    async function toggleErrorsPanel() {
+      errorsVisible = !errorsVisible;
+      document.getElementById('errorsModal').style.display = errorsVisible ? 'flex' : 'none';
+      if (errorsVisible) await loadErrors();
+    }
+
+    async function loadErrors() {
+      const res = await fetch('/monitor/api/errors');
+      const errors = await res.json();
+      const container = document.getElementById('errorsList');
+
+      if (errors.length === 0) {
+        container.innerHTML = '<div class="empty-note">No errors recorded in the current window.</div>';
+        return;
+      }
+
+      container.innerHTML = errors.map(e => `
+        <div class="err-item">
+          <div class="err-item-top"><span>${e.endpoint}</span><span>${new Date(e.time).toLocaleTimeString()}</span></div>
+          <div class="err-item-type">${e.exceptionType}</div>
+          <div class="err-item-method">${e.method}</div>
+          <div class="err-item-msg">${e.message || '(no message)'}</div>
+        </div>
+      `).join('');
+    }
+
+    function severityClass(sev) {
+      return { HIGH: 'sev-high', MEDIUM: 'sev-medium', LOW: 'sev-low' }[sev] || 'sev-low';
     }
 
     function renderAiResults(rawJson) {
-        const container = document.getElementById('aiResults');
-        let items;
-        try {
-            items = JSON.parse(rawJson);
-        } catch (e) {
-            container.innerHTML = `<pre style="white-space:pre-wrap; color:#94a3b8;">${rawJson}</pre>`;
-            return;
-        }
-        container.innerHTML = items.map(item => `
-            <div style="border-left:3px solid ${severityColor(item.severity)}; background:#0f172a; padding:10px 14px; margin-bottom:10px; border-radius:6px;">
-                <div style="display:flex; justify-content:space-between;">
-                    <strong>${item.endpoint || ''}</strong>
-                    <span style="color:${severityColor(item.severity)}; font-size:12px; font-weight:bold;">${item.severity || ''} · ${item.cause || ''}</span>
-                </div>
-                <div style="color:#e2e8f0; margin-top:6px; font-size:13px;">${item.issue || ''}</div>
-                <div style="color:#4ade80; margin-top:6px; font-size:13px;">💡 ${item.suggestion || ''}</div>
-            </div>
-        `).join('');
+      const container = document.getElementById('aiResults');
+      let items;
+      try { items = JSON.parse(rawJson); }
+      catch (e) {
+        container.innerHTML = `<pre style="white-space:pre-wrap; color:var(--text-muted); font-size:12px; padding:14px 16px; margin:0;">${rawJson}</pre>`;
+        return;
+      }
+      container.innerHTML = items.map(item => `
+        <div class="finding ${severityClass(item.severity)}">
+          <div class="finding-top">
+            <span class="finding-endpoint">${item.endpoint || ''}</span>
+            <span class="finding-meta">${item.severity || ''} · ${item.cause || ''}</span>
+          </div>
+          <div class="finding-issue">${item.issue || ''}</div>
+          <div class="finding-suggestion">${item.suggestion || ''}</div>
+        </div>
+      `).join('');
     }
 
     async function runAiAnalysis(forceRefresh) {
-        const btn = document.getElementById('aiAnalyzeBtn');
-        const refreshBtn = document.getElementById('aiRefreshBtn');
-        btn.disabled = true;
-        refreshBtn.disabled = true;
-        document.getElementById('aiResults').innerHTML = '<p style="color:#64748b;">Analyzing...</p>';
+      const btn = document.getElementById('aiAnalyzeBtn');
+      const refreshBtn = document.getElementById('aiRefreshBtn');
+      btn.disabled = true; refreshBtn.disabled = true;
+      document.getElementById('aiResults').innerHTML = '<div class="empty-note">Analyzing…</div>';
 
-        try {
-            const res = await fetch('/monitor/api/ai-analysis?refresh=' + forceRefresh, { method: 'POST' });
-            const data = await res.json();
-            if (!res.ok) {
-                document.getElementById('aiResults').innerHTML = `<p style="color:#f87171;">${data.error}</p>`;
-                return;
-            }
-            renderAiResults(data.rawJson);
-            document.getElementById('aiTimestamp').innerText = 'Generated: ' + new Date(data.generatedAtMillis).toLocaleTimeString();
-        } catch (e) {
-            document.getElementById('aiResults').innerHTML = `<p style="color:#f87171;">Request failed: ${e}</p>`;
-        } finally {
-            btn.disabled = false;
-            refreshBtn.disabled = false;
+      try {
+        const res = await fetch('/monitor/api/ai-analysis?refresh=' + forceRefresh, { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) {
+          document.getElementById('aiResults').innerHTML = `<div class="empty-note" style="color:var(--err);">${data.error}</div>`;
+          return;
         }
+        renderAiResults(data.rawJson);
+        document.getElementById('aiTimestamp').textContent = new Date(data.generatedAtMillis).toLocaleTimeString();
+      } catch (e) {
+        document.getElementById('aiResults').innerHTML = `<div class="empty-note" style="color:var(--err);">Request failed: ${e}</div>`;
+      } finally {
+        btn.disabled = false; refreshBtn.disabled = false;
+      }
     }
 
     initHeartbeatChart();
