@@ -14,10 +14,6 @@ public class SmartMonitorAiConfiguration {
     public AiAnalysisProvider aiAnalysisProvider(SmartMonitorProperties properties) {
         SmartMonitorProperties.Ai ai = properties.getAi();
 
-        if ("jlama".equalsIgnoreCase(ai.getProvider())) {
-            return new JlamaProvider(ai.getModel(), ai.getLocalModelPath());
-        }
-
         if ("ollama".equalsIgnoreCase(ai.getProvider())) {
             return new OllamaProvider(ai.getBaseUrl(), ai.getModel());
         }
