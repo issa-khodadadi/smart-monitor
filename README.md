@@ -22,23 +22,23 @@ Most monitoring setups require a separate stack (agent + collector + dashboard) 
 - **Rolling window** — metrics older than a configurable window are automatically evicted, so memory usage stays bounded even under heavy, long-running traffic. A capped number of endpoints/methods is also enforced (oldest evicted first) to protect against unbounded cardinality.
 - **Optional security bypass** — if Spring Security is on the classpath, `/monitor/**` is automatically opened up (without touching the rest of your app's security config) so the dashboard is reachable without a token.
 
-## Installation
 
-Build and install the module locally:
+## Quick Start
 
-```bash
-mvn clean install
-```
-
-Add it as a dependency to your Spring Boot project:
+Add SmartMonitor to your Spring Boot application:
 
 ```xml
 <dependency>
-    <groupId>com.issa</groupId>
+    <groupId>io.github.issa-khodadadi</groupId>
     <artifactId>smartmonitor</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
 </dependency>
 ```
+Start your application and open:
+```
+http://localhost:8080/monitor
+```
+No annotations, bean registration, or manual instrumentation are required.
 
 Make sure your project has `spring-boot-starter-aop` on the classpath (SmartMonitor uses AspectJ-based AOP).
 
