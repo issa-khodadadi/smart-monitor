@@ -20,6 +20,7 @@
           --db: #e0a640;
           --err: #e0596a;
           --ok: #4fc98a;
+          --warn: #e08c40;
           --radius: 6px;
           --mono: 'JetBrains Mono', ui-monospace, monospace;
         }
@@ -35,26 +36,32 @@
         }
         .shell { max-width: 1280px; margin: 0 auto; padding: 28px 32px 64px; }
 
-        /* Header */
         .topbar { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
         .topbar h1 { font-size: 15px; font-weight: 600; letter-spacing: 0.02em; margin: 0; color: var(--text); }
         .topbar .brand-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background: var(--ok); margin-right:8px; box-shadow: 0 0 0 3px rgba(79,201,138,0.15); }
         .topbar .sub { color: var(--text-muted); font-size: 12px; font-family: var(--mono); }
 
-        /* Stat cards */
-        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 28px; }
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 12px; }
         .stat { background: var(--surface); padding: 14px 16px; cursor: default; transition: background 0.15s; }
         .stat.clickable { cursor: pointer; }
         .stat.clickable:hover { background: var(--surface-raised); }
         .stat .stat-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 6px; }
         .stat .stat-value { font-family: var(--mono); font-size: 19px; font-weight: 600; color: var(--text); line-height: 1.2; }
-        .stat .stat-value.small { font-size: 13px; font-weight: 500; }
         .stat .stat-value.cpu { color: var(--cpu); }
         .stat .stat-value.db { color: var(--db); }
         .stat .stat-value.err { color: var(--err); }
-        .stat .stat-sub { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 2px; }
 
-        /* Section headers */
+        .bottleneck-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 28px; }
+        @media (max-width: 780px) { .bottleneck-grid { grid-template-columns: 1fr; } }
+        .bn-card { background: var(--surface); padding: 14px 16px; }
+        .bn-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 8px; }
+        .bn-name { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.45; word-break: break-word; }
+        .bn-name.cpu { color: var(--cpu); }
+        .bn-name.db { color: var(--db); }
+        .bn-name.err { color: var(--err); }
+        .bn-time { font-family: var(--mono); font-size: 11px; color: var(--text-dim); margin-top: 5px; }
+        .bn-empty { font-family: var(--mono); font-size: 13px; color: var(--text-dim); }
+
         .section { margin-bottom: 28px; }
         .section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
         .section-head h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0; }
@@ -66,7 +73,6 @@
         .charts-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
         @media (max-width: 860px) { .charts-row { grid-template-columns: 1fr; } }
 
-        /* Table */
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); font-weight: 500; padding: 10px 14px; border-bottom: 1px solid var(--border-strong); background: var(--surface-raised); }
         td { padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
@@ -80,6 +86,9 @@
 
         .name-cell { color: var(--text); }
         .name-cell .method { color: var(--text-muted); }
+
+        .t-hot { color: var(--err) !important; font-weight: 700; }
+        .t-warn { color: var(--warn) !important; font-weight: 600; }
 
         .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 500; padding: 2px 7px; border-radius: 3px; letter-spacing: 0.02em; }
         .pill .dot { width: 5px; height: 5px; border-radius: 50%; }
@@ -97,11 +106,8 @@
         .type-tag.cpu { color: var(--cpu); }
         .type-tag.unknown { color: var(--text-muted); }
 
-        .hot { color: var(--err); font-weight: 600; }
-
         #methodsSection { display: none; margin-top: 16px; }
 
-        /* AI panel */
         #aiSection { display: none; }
         .ai-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
         .ai-head-left { display: flex; align-items: center; gap: 8px; }
@@ -123,7 +129,6 @@
         .finding-issue { font-size: 12.5px; color: var(--text-muted); margin-top: 5px; }
         .finding-suggestion { font-size: 12.5px; color: var(--ok); margin-top: 5px; }
 
-        /* Modal */
         .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 1000; align-items: center; justify-content: center; }
         .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius); width: 92%; max-width: 620px; max-height: 72vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
         .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); }
@@ -150,6 +155,7 @@
     </div>
 
     <div class="stat-grid" id="panels"></div>
+    <div class="bottleneck-grid" id="bottleneckPanels"></div>
 
     <div class="section">
         <div class="section-head">
@@ -228,12 +234,20 @@
 <script>
     const COLOR = { cpu: '#3fb1ce', db: '#e0a640', err: '#e0596a', ok: '#4fc98a', muted: '#6b7280', grid: '#1f2530' };
 
+    const TIME_HOT_MS = 5000;
+    const TIME_WARN_MS = 500;
+
     let rankChart, heartbeatChart;
     let selectedEndpoint = null;
     let errorsVisible = false;
 
     function shortLabel(key) { return key ? key.replace('#', '.') : '-'; }
-    function bottleneckLabel(b) { return b ? shortLabel(b.key) + '  ·  ' + b.totalTimeMs + ' ms' : '—'; }
+
+    function timeClass(ms) {
+      if (ms >= TIME_HOT_MS) return 't-hot';
+      if (ms >= TIME_WARN_MS) return 't-warn';
+      return '';
+    }
 
     function layerPill(layer) {
       const cls = { SERVICE: 'pill-service', REPOSITORY: 'pill-repository', CONTROLLER: 'pill-controller' }[layer] || 'pill-other';
@@ -245,6 +259,19 @@
     }
     setInterval(updateClock, 1000);
     updateClock();
+
+    function bottleneckCard(label, b, colorClass) {
+      if (!b) {
+        return `<div class="bn-card"><div class="bn-label">${label}</div><div class="bn-empty">No data</div></div>`;
+      }
+      return `
+        <div class="bn-card">
+          <div class="bn-label">${label}</div>
+          <div class="bn-name ${colorClass}">${shortLabel(b.key)}</div>
+          <div class="bn-time">${b.totalTimeMs} ms total · ${b.callCount} calls</div>
+        </div>
+      `;
+    }
 
     function renderOrUpdateBar(labels, values) {
       const ctx = document.getElementById('rankChart');
@@ -313,19 +340,17 @@
 
       const tbody = document.getElementById('methodsBody');
       tbody.innerHTML = '';
-      const maxSelf = methods.length ? methods[0].selfTimeMs : 0;
 
       methods.forEach(m => {
         const tr = document.createElement('tr');
-        const isHot = m.selfTimeMs === maxSelf && maxSelf > 0;
         tr.innerHTML = `
           <td class="name-cell"><span class="method">${m.className}.</span>${m.methodName}</td>
           <td>${layerPill(m.layer)}</td>
           <td class="num">${m.callCount}</td>
           <td class="num">${m.errorCount}</td>
-          <td class="num ${isHot ? 'hot' : ''}">${m.selfTimeMs}</td>
-          <td class="num">${m.totalTimeMs}</td>
-          <td class="num">${m.dbTimeMs}</td>
+          <td class="num ${timeClass(m.selfTimeMs)}">${m.selfTimeMs}</td>
+          <td class="num ${timeClass(m.totalTimeMs)}">${m.totalTimeMs}</td>
+          <td class="num ${timeClass(m.dbTimeMs)}">${m.dbTimeMs}</td>
           <td class="num">${m.memoryKb}</td>
           <td class="num"><span class="type-tag ${m.bottleneckType.toLowerCase()}">${m.bottleneckType}</span></td>
         `;
@@ -346,10 +371,12 @@
         <div class="stat clickable" onclick="toggleErrorsPanel()"><div class="stat-label">Errors</div><div class="stat-value err">${overview.totalErrors}</div></div>
         <div class="stat"><div class="stat-label">DB time</div><div class="stat-value db">${overview.dbTimeMs}<span style="font-size:11px;color:var(--text-dim);"> ms</span></div></div>
         <div class="stat"><div class="stat-label">CPU time</div><div class="stat-value cpu">${overview.cpuTimeMs}<span style="font-size:11px;color:var(--text-dim);"> ms</span></div></div>
-        <div class="stat"><div class="stat-label">Top CPU bottleneck</div><div class="stat-value small cpu">${bottleneckLabel(overview.topCpuBottleneck)}</div></div>
-        <div class="stat"><div class="stat-label">Top IO bottleneck</div><div class="stat-value small db">${bottleneckLabel(overview.topIoBottleneck)}</div></div>
-        <div class="stat"><div class="stat-label">Top other bottleneck</div><div class="stat-value small err">${bottleneckLabel(overview.topOtherBottleneck)}</div></div>
       `;
+
+      document.getElementById('bottleneckPanels').innerHTML =
+        bottleneckCard('Top CPU bottleneck', overview.topCpuBottleneck, 'cpu') +
+        bottleneckCard('Top IO bottleneck', overview.topIoBottleneck, 'db') +
+        bottleneckCard('Top other bottleneck', overview.topOtherBottleneck, 'err');
 
       document.getElementById('aiSectionWrap').style.display = overview.aiEnabled ? 'block' : 'none';
 
@@ -367,10 +394,10 @@
           <td class="name-cell mono">${shortLabel(ep.key)}</td>
           <td class="num">${ep.callCount}</td>
           <td class="num">${ep.errorCount}</td>
-          <td class="num">${ep.avgTimeMs}</td>
-          <td class="num">${ep.maxTimeMs}</td>
-          <td class="num">${ep.totalTimeMs}</td>
-          <td class="num">${ep.dbTimeMs}</td>
+          <td class="num ${timeClass(ep.avgTimeMs)}">${ep.avgTimeMs}</td>
+          <td class="num ${timeClass(ep.maxTimeMs)}">${ep.maxTimeMs}</td>
+          <td class="num ${timeClass(ep.totalTimeMs)}">${ep.totalTimeMs}</td>
+          <td class="num ${timeClass(ep.dbTimeMs)}">${ep.dbTimeMs}</td>
           <td class="num">${ep.memoryKb}</td>
         `;
         tr.onclick = () => loadMethods(ep.key);
