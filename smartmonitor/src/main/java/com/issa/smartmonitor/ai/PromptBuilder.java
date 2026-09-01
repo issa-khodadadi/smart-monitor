@@ -1,7 +1,6 @@
 package com.issa.smartmonitor.ai;
 
 import com.issa.smartmonitor.model.EndpointStats;
-import com.issa.smartmonitor.model.MethodStats;
 
 import java.util.Comparator;
 import java.util.List;
@@ -9,46 +8,33 @@ import java.util.stream.Collectors;
 
 public class PromptBuilder {
 
-    public String buildOverviewPrompt(List<EndpointStats> endpoints) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("You are a backend performance analyst. Analyze the following Spring Boot application ")
-                .append("runtime metrics (aggregated over a rolling time window) and identify the top bottlenecks.\n\n")
-                .append("For each significant issue, explain: what is slow, why (CPU-bound / DB-bound / high call count), ")
-                .append("and a concrete optimization suggestion.\n\n")
-                .append("Respond ONLY in this JSON array format, no extra text:\n")
-                .append("[{\"endpoint\":\"...\",\"issue\":\"...\",\"cause\":\"CPU|DATABASE|N_PLUS_ONE|MEMORY|OTHER\",")
-                .append("\"severity\":\"HIGH|MEDIUM|LOW\",\"suggestion\":\"...\"}]\n\n")
-                .append("Metrics data:\n");
+    private static final int MAX_ENDPOINTS = 3;
 
-        List<EndpointStats> sorted = endpoints.stream()
+    public String buildOverviewPrompt(List<EndpointStats> endpoints) {
+        List<EndpointStats> top = endpoints.stream()
                 .sorted(Comparator.comparingDouble(EndpointStats::totalTimeMs).reversed())
-                .limit(10)
+                .limit(MAX_ENDPOINTS)
                 .toList();
 
-        for (EndpointStats ep : sorted) {
-            sb.append("- Endpoint: ").append(ep.getEndpointKey().replace("#", ".")).append("\n")
-                    .append("  calls=").append(ep.getCallCount().sum())
-                    .append(", errors=").append(ep.getErrorCount().sum())
-                    .append(", avgMs=").append(round(ep.avgTimeMs()))
-                    .append(", maxMs=").append(round(ep.maxTimeMs()))
-                    .append(", totalMs=").append(round(ep.totalTimeMs()))
-                    .append(", dbTimeMs=").append(round(ep.dbTimeMs()))
-                    .append(", memoryKb=").append(round(ep.memoryKb())).append("\n");
+        StringBuilder sb = new StringBuilder();
+        sb.append("You are a performance monitoring assistant. Below are the slowest API endpoints. ")
+                .append("For EACH one, write exactly one line in this exact format, nothing else:\n")
+                .append("ENDPOINT_NAME | CAUSE(CPU or DATABASE or OTHER) | ONE_SHORT_SUGGESTION\n\n")
+                .append("Data:\n");
 
-            List<MethodStats> topMethods = ep.getMethods().stream()
-                    .sorted(Comparator.comparingDouble(MethodStats::selfTimeMs).reversed())
-                    .limit(5)
-                    .toList();
+        for (EndpointStats ep : top) {
+            double dbRatio = ep.totalTimeMs() == 0 ? 0 : (ep.dbTimeMs() / ep.totalTimeMs()) * 100;
+            long calls = ep.getCallCount().sum();
+            double errorRate = calls == 0 ? 0 : ((double) ep.getErrorCount().sum() / calls) * 100;
 
-            for (MethodStats m : topMethods) {
-                sb.append("    * ").append(m.getClassName()).append(".").append(m.getMethodName())
-                        .append(" [").append(m.getLayer()).append("]")
-                        .append(" calls=").append(m.getCallCount().sum())
-                        .append(", selfMs=").append(round(m.selfTimeMs()))
-                        .append(", dbMs=").append(round(m.dbTimeMs()))
-                        .append(", memoryKb=").append(round(m.totalMemoryKb()))
-                        .append(", type=").append(m.bottleneckType()).append("\n");
-            }
+            sb.append("- ").append(ep.getEndpointKey().replace("#", "."))
+                    .append(": totalMs=").append(round(ep.totalTimeMs()))
+                    .append(", selfMs=").append(round(ep.totalTimeMs()))
+                    .append(", calls=").append(calls)
+                    .append(", dbRatio=").append(round(dbRatio)).append("%")
+                    .append(", errorRate=").append(round(errorRate)).append("%")
+                    .append(", memoryKb=").append(round(ep.memoryKb()))
+                    .append("\n");
         }
 
         return sb.toString();
