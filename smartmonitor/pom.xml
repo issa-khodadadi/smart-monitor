@@ -14,7 +14,7 @@
 
     <groupId>io.github.issa-khodadadi</groupId>
     <artifactId>smartmonitor</artifactId>
-    <version>0.2.1</version>
+    <version>0.2.2</version>
 
     <name>SmartMonitor</name>
     <description>Zero-config runtime performance monitoring for Spring Boot applications</description>

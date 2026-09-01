@@ -51,7 +51,7 @@ public class MonitoringAspect {
 
             registry.record(className, methodName, layer, duration, isError, memoryDelta);
 
-            long selfTime = duration - frame.childTimeNanos;
+            long selfTime = duration - frame.childTimeNanos.get();
             registry.addSelfTime(key, selfTime);
 
             registry.recordToEndpoint(endpointKey, className, methodName, layer, duration, selfTime, isError, memoryDelta, isRoot);
@@ -64,7 +64,7 @@ public class MonitoringAspect {
             CallStack.pop();
 
             if (parent != null) {
-                parent.childTimeNanos += duration;
+                parent.childTimeNanos.addAndGet(duration);
                 registry.recordEdge(parent.key, key, duration);
             }
         }

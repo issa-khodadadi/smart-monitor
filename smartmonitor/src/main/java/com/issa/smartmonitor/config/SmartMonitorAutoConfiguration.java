@@ -2,6 +2,7 @@ package com.issa.smartmonitor.config;
 
 import com.issa.smartmonitor.ai.AiAnalysisService;
 import com.issa.smartmonitor.aspect.MonitoringAspect;
+import com.issa.smartmonitor.aspect.MonitoringTaskDecoratorBeanPostProcessor;
 import com.issa.smartmonitor.core.*;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -49,5 +50,10 @@ public class SmartMonitorAutoConfiguration {
     @Bean
     public MetricSnapshotTask metricSnapshotTask(MetricRegistry registry, MetricHistory history) {
         return new MetricSnapshotTask(registry, history);
+    }
+
+    @Bean
+    public static MonitoringTaskDecoratorBeanPostProcessor monitoringTaskDecoratorBeanPostProcessor() {
+        return new MonitoringTaskDecoratorBeanPostProcessor();
     }
 }
