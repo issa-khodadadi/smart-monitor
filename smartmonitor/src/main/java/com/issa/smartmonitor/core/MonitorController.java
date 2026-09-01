@@ -57,7 +57,7 @@ public class MonitorController {
                 .collect(Collectors.toList());
 
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("totalCalls", totalCalls);
+        result.put("totalCalls", registry.getPermanentCallCounter().total());
         result.put("totalErrors", totalErrors);
         result.put("totalTimeMs", round(totalTime));
         result.put("dbTimeMs", round(dbTime));
@@ -181,4 +181,15 @@ public class MonitorController {
         return key == null ? "-" : key.replace("#", ".");
     }
 
+    @GetMapping(value = "/monitor/api/top-called", produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<Map<String, Object>> topCalled() {
+        return registry.getPermanentCallCounter().topByCallCount(20).stream()
+                .map(entry -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("key", entry.getKey());
+                    m.put("callCount", entry.getValue());
+                    return m;
+                })
+                .collect(Collectors.toList());
+    }
 }
