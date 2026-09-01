@@ -231,6 +231,16 @@
     </div>
 </div>
 
+<div class="modal-backdrop" id="topCalledModal" onclick="closeTopCalledModalOnBackdrop(event)">
+    <div class="modal">
+        <div class="modal-head">
+            <h3 style="color: var(--cpu);">Most called endpoints</h3>
+            <button class="btn" onclick="toggleTopCalledPanel()">Close</button>
+        </div>
+        <div class="modal-body" id="topCalledList"></div>
+    </div>
+</div>
+
 <script>
     const COLOR = { cpu: '#3fb1ce', db: '#e0a640', err: '#e0596a', ok: '#4fc98a', muted: '#6b7280', grid: '#1f2530' };
 
@@ -240,6 +250,7 @@
     let rankChart, heartbeatChart;
     let selectedEndpoint = null;
     let errorsVisible = false;
+    let topCalledVisible = false;
 
     function shortLabel(key) { return key ? key.replace('#', '.') : '-'; }
 
@@ -367,7 +378,8 @@
       const endpoints = await endpointsRes.json();
 
       document.getElementById('panels').innerHTML = `
-        <div class="stat"><div class="stat-label">Total calls</div><div class="stat-value">${overview.totalCalls}</div></div>
+<!--        <div class="stat"><div class="stat-label">Total calls</div><div class="stat-value">${overview.totalCalls}</div></div>-->
+        <div class="stat clickable" onclick="toggleTopCalledPanel()"><div class="stat-label">Total calls</div><div class="stat-value">${overview.totalCalls}</div></div>
         <div class="stat clickable" onclick="toggleErrorsPanel()"><div class="stat-label">Errors</div><div class="stat-value err">${overview.totalErrors}</div></div>
         <div class="stat"><div class="stat-label">DB time</div><div class="stat-value db">${overview.dbTimeMs}<span style="font-size:11px;color:var(--text-dim);"> ms</span></div></div>
         <div class="stat"><div class="stat-label">CPU time</div><div class="stat-value cpu">${overview.cpuTimeMs}<span style="font-size:11px;color:var(--text-dim);"> ms</span></div></div>
@@ -483,6 +495,44 @@
       } finally {
         btn.disabled = false; refreshBtn.disabled = false;
       }
+    }
+
+<!--    api calls couter-->
+    function closeTopCalledModalOnBackdrop(event) {
+        if (event.target.id === 'topCalledModal') toggleTopCalledPanel();
+    }
+
+    async function toggleTopCalledPanel() {
+        topCalledVisible = !topCalledVisible;
+        document.getElementById('topCalledModal').style.display = topCalledVisible ? 'flex' : 'none';
+        if (topCalledVisible) await loadTopCalled();
+    }
+
+    async function loadTopCalled() {
+        const res = await fetch('/monitor/api/top-called');
+        const items = await res.json();
+        const container = document.getElementById('topCalledList');
+
+        if (items.length === 0) {
+            container.innerHTML = '<div class="empty-note">No calls recorded yet.</div>';
+            return;
+        }
+
+        const maxCalls = items[0].callCount;
+        container.innerHTML = items.map((item, i) => {
+            const pct = maxCalls > 0 ? (item.callCount / maxCalls) * 100 : 0;
+            return `
+                <div style="padding:8px 0; border-bottom:1px solid var(--border);">
+                    <div style="display:flex; justify-content:space-between; font-size:12.5px;">
+                        <span style="font-family:var(--mono); color:var(--text);">${i + 1}. ${shortLabel(item.key)}</span>
+                        <span style="font-family:var(--mono); color:var(--cpu); font-weight:600;">${item.callCount}</span>
+                    </div>
+                    <div style="background:var(--border); border-radius:3px; height:4px; margin-top:5px; overflow:hidden;">
+                        <div style="background:var(--cpu); height:100%; width:${pct}%;"></div>
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
     initHeartbeatChart();

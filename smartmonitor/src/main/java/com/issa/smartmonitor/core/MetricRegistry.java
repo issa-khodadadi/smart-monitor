@@ -1,8 +1,10 @@
 package com.issa.smartmonitor.core;
 
+import com.issa.smartmonitor.model.CallCounter;
 import com.issa.smartmonitor.model.EndpointStats;
 import com.issa.smartmonitor.model.ErrorEntry;
 import com.issa.smartmonitor.model.MethodStats;
+import lombok.Getter;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,6 +17,9 @@ public class MetricRegistry {
     private final ConcurrentHashMap<String, EndpointStats> endpoints = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LongAdder> edgeTimeNanos = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LongAdder> edgeCallCount = new ConcurrentHashMap<>();
+
+    @Getter
+    private final CallCounter permanentCallCounter = new CallCounter();
 
     private final int maxEndpoints;
     private final int maxMethodsPerEndpoint;
@@ -36,6 +41,10 @@ public class MetricRegistry {
 
     public void recordToEndpoint(String endpointKey, String className, String methodName, String layer,
                                  long durationNanos, long selfTimeNanos, boolean isError, long memoryBytes, boolean isRoot) {
+        if (isRoot) {
+            permanentCallCounter.increment(endpointKey); // NEW — never evicted, survives rolling window cleanup
+        }
+
         EndpointStats ep = endpoints.get(endpointKey);
         if (ep == null) {
             if (endpoints.size() >= maxEndpoints) {
