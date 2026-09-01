@@ -443,7 +443,7 @@
 
       container.innerHTML = errors.map(e => `
         <div class="err-item">
-          <div class="err-item-top"><span>${e.endpoint}</span><span>${new Date(e.time).toLocaleTimeString()}</span></div>
+          <div class="err-item-top"><span>${e.endpoint}</span><span>${new Date(e.time).toLocaleString()}</span></div>
           <div class="err-item-type">${e.exceptionType}</div>
           <div class="err-item-method">${e.method}</div>
           <div class="err-item-msg">${e.message || '(no message)'}</div>
