@@ -108,7 +108,7 @@
 
         #methodsSection { display: none; margin-top: 16px; }
 
-        #aiSection { display: none; }
+
         .ai-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
         .ai-head-left { display: flex; align-items: center; gap: 8px; }
         .ai-head-left h2 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 0; }
@@ -387,8 +387,8 @@
 
       document.getElementById('bottleneckPanels').innerHTML =
         bottleneckCard('Top CPU bottleneck', overview.topCpuBottleneck, 'cpu') +
-        bottleneckCard('Top IO bottleneck', overview.topIoBottleneck, 'db') +
-        bottleneckCard('Top other bottleneck', overview.topOtherBottleneck, 'err');
+        bottleneckCard('Top IO bottleneck', overview.topDatabaseBottleneck, 'db') +
+        bottleneckCard('Top other bottleneck', overview.topUnknownBottleneck, 'err');
 
       document.getElementById('aiSectionWrap').style.display = overview.aiEnabled ? 'block' : 'none';
 
