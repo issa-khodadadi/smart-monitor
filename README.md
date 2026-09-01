@@ -31,7 +31,7 @@ Add SmartMonitor to your Spring Boot application:
 <dependency>
     <groupId>io.github.issa-khodadadi</groupId>
     <artifactId>smartmonitor</artifactId>
-    <version>0.1.1</version>
+    <version>0.2.1</version>
 </dependency>
 ```
 Start your application and open:
