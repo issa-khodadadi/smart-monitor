@@ -3,7 +3,6 @@ package com.issa.smartmonitor.model;
 import com.issa.smartmonitor.enums.BottleneckType;
 import com.issa.smartmonitor.enums.Layer;
 import lombok.Getter;
-
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -23,6 +22,7 @@ public class MethodStats {
     private final AtomicLong maxMemoryBytes = new AtomicLong(0);
     private final AtomicLong selfTimeNanos = new AtomicLong(0);
     private final AtomicLong lastAccessMillis = new AtomicLong(System.currentTimeMillis());
+    private final LatencyReservoir latencyReservoir = new LatencyReservoir(512);
 
     public MethodStats(String className, String methodName, String layer) {
         this.className = className;
@@ -35,6 +35,7 @@ public class MethodStats {
         if (isError) errorCount.increment();
         totalTimeNanos.addAndGet(durationNanos);
         maxTimeNanos.updateAndGet(current -> Math.max(current, durationNanos));
+        latencyReservoir.record(durationNanos);
         if (memoryBytes > 0) {
             totalMemoryBytes.addAndGet(memoryBytes);
             maxMemoryBytes.updateAndGet(current -> Math.max(current, memoryBytes));
@@ -58,6 +59,9 @@ public class MethodStats {
     public double maxMemoryKb() { return maxMemoryBytes.get() / 1024.0; }
     public double selfTimeMs() { return selfTimeNanos.get() / 1_000_000.0; }
     public long lastAccessMillis() { return lastAccessMillis.get(); }
+
+    public double p95TimeMs() { return latencyReservoir.percentileMs(95); }
+    public double p99TimeMs() { return latencyReservoir.percentileMs(99); }
 
     public String bottleneckType() {
         double total = totalTimeMs();

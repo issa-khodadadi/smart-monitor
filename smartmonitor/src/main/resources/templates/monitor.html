@@ -78,6 +78,12 @@
         td { padding: 9px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
         td.mono, th.num { font-family: var(--mono); }
         th.num { text-align: right; }
+
+        th[data-sort] { cursor: pointer; user-select: none; position: relative; }
+        th[data-sort]:hover { color: var(--text); }
+        th[data-sort].sorted-asc::after { content: ' ▲'; font-size: 8px; color: var(--cpu); }
+        th[data-sort].sorted-desc::after { content: ' ▼'; font-size: 8px; color: var(--cpu); }
+
         td.num { text-align: right; font-family: var(--mono); color: var(--text); }
         tr.row-clickable { cursor: pointer; }
         tr.row-clickable:hover td { background: var(--surface-raised); }
@@ -105,6 +111,9 @@
         .type-tag.database { color: var(--db); }
         .type-tag.cpu { color: var(--cpu); }
         .type-tag.unknown { color: var(--text-muted); }
+
+        .n1-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px; margin-left: 6px; color: var(--warn); background: rgba(224,140,64,0.12); white-space: nowrap; }
+        .n1-badge.severe { color: var(--err); background: rgba(224,89,106,0.12); }
 
         #methodsSection { display: none; margin-top: 16px; }
 
@@ -151,7 +160,12 @@
 
     <div class="topbar">
         <h1><span class="brand-dot"></span>SmartMonitor</h1>
-        <span class="sub" id="liveClock">—</span>
+        <div style="display:flex; align-items:center; gap:12px;">
+            <button class="btn" onclick="toggleBackgroundPanel()" style="font-size:11px; padding:4px 10px;">Background</button>
+            <button class="btn" onclick="toggleCallGraphPanel()" style="font-size:11px; padding:4px 10px;">Call Graph</button>
+            <button class="btn" onclick="toggleTracesPanel()" style="font-size:11px; padding:4px 10px;">Traces</button>
+            <span class="sub" id="liveClock">—</span>
+        </div>
     </div>
 
     <div class="stat-grid" id="panels"></div>
@@ -186,7 +200,7 @@
         </div>
     </div>
 
-    <div class="section">
+    <!--<div class="section">
         <div class="section-head">
             <h2>Endpoints</h2>
             <span class="hint">Top 10 by total time — click a row to inspect</span>
@@ -195,7 +209,44 @@
             <table>
                 <thead>
                 <tr>
-                    <th>Endpoint</th><th class="num">Calls</th><th class="num">Errors</th><th class="num">Avg&nbsp;ms</th><th class="num">Max&nbsp;ms</th><th class="num">Total&nbsp;ms</th><th class="num">DB&nbsp;ms</th><th class="num">Mem&nbsp;KB</th>
+                    <th>Endpoint</th><th class="num">Calls</th><th class="num">Errors</th><th class="num">Avg&nbsp;ms</th><th class="num">p95&nbsp;ms</th><th class="num">p99&nbsp;ms</th><th class="num">Max&nbsp;ms</th><th class="num">Total&nbsp;ms</th><th class="num">DB&nbsp;ms</th><th class="num">Mem&nbsp;KB</th>
+                </tr>
+                </thead>
+                <tbody id="endpointsBody"></tbody>
+            </table>
+        </div>
+    </div>-->
+
+    <div class="section">
+        <div class="section-head">
+            <h2>Endpoints</h2>
+            <div style="display:flex; align-items:center; gap:10px;">
+                <button class="btn" id="pauseBtn" onclick="toggleAutoRefresh()" style="font-size:11px; padding:4px 10px;">⏸ Pause</button>
+                <select id="endpointLimitSelect" onchange="onEndpointLimitChange(this.value)"
+                        style="background:var(--surface-raised); color:var(--text); border:1px solid var(--border-strong); border-radius:5px; font-size:11px; padding:5px 8px; font-family:var(--mono);">
+                    <option value="10">Top 10</option>
+                    <option value="25">Top 25</option>
+                    <option value="50">Top 50</option>
+                    <option value="100">Top 100</option>
+                </select>
+                <input id="endpointSearchInput" type="text" placeholder="Search endpoint…" oninput="onEndpointSearchInput(this.value)"
+                       style="background:var(--surface-raised); color:var(--text); border:1px solid var(--border-strong); border-radius:5px; font-size:12px; padding:5px 10px; font-family:var(--mono); width:180px;">
+            </div>
+        </div>
+        <div class="panel">
+            <table>
+                <thead>
+                <tr id="endpointsHeadRow">
+                    <th data-sort="key">Endpoint</th>
+                    <th class="num" data-sort="callCount">Calls</th>
+                    <th class="num" data-sort="errorCount">Errors</th>
+                    <th class="num" data-sort="avgTimeMs">Avg&nbsp;ms</th>
+                    <th class="num" data-sort="p95TimeMs">p95&nbsp;ms</th>
+                    <th class="num" data-sort="p99TimeMs">p99&nbsp;ms</th>
+                    <th class="num" data-sort="maxTimeMs">Max&nbsp;ms</th>
+                    <th class="num" data-sort="totalTimeMs">Total&nbsp;ms</th>
+                    <th class="num" data-sort="dbTimeMs">DB&nbsp;ms</th>
+                    <th class="num" data-sort="memoryKb">Mem&nbsp;KB</th>
                 </tr>
                 </thead>
                 <tbody id="endpointsBody"></tbody>
@@ -210,8 +261,22 @@
         <div class="panel">
             <table>
                 <thead>
-                <tr>
-                    <th>Method</th><th>Layer</th><th class="num">Calls</th><th class="num">Errors</th><th class="num">Self&nbsp;ms</th><th class="num">Total&nbsp;ms</th><th class="num">DB&nbsp;ms</th><th class="num">Mem&nbsp;KB</th><th class="num">Type</th>
+                <!--<tr>
+                    <th>Method</th><th>Layer</th><th class="num">Calls</th><th class="num">Errors</th><th class="num">Self&nbsp;ms</th><th class="num">p95&nbsp;ms</th><th class="num">p99&nbsp;ms</th><th class="num">Total&nbsp;ms</th><th class="num">DB&nbsp;ms</th><th class="num">Mem&nbsp;KB</th><th class="num">Type</th>
+                </tr>-->
+
+                <tr id="methodsHeadRow">
+                    <th data-sort="className">Method</th>
+                    <th>Layer</th>
+                    <th class="num" data-sort="callCount">Calls</th>
+                    <th class="num" data-sort="errorCount">Errors</th>
+                    <th class="num" data-sort="selfTimeMs">Self&nbsp;ms</th>
+                    <th class="num" data-sort="p95TimeMs">p95&nbsp;ms</th>
+                    <th class="num" data-sort="p99TimeMs">p99&nbsp;ms</th>
+                    <th class="num" data-sort="totalTimeMs">Total&nbsp;ms</th>
+                    <th class="num" data-sort="dbTimeMs">DB&nbsp;ms</th>
+                    <th class="num" data-sort="memoryKb">Mem&nbsp;KB</th>
+                    <th class="num">Type</th>
                 </tr>
                 </thead>
                 <tbody id="methodsBody"></tbody>
@@ -241,6 +306,59 @@
     </div>
 </div>
 
+<div class="modal-backdrop" id="tracesModal" onclick="closeTracesModalOnBackdrop(event)">
+    <div class="modal">
+        <div class="modal-head">
+            <h3 style="color: var(--cpu);">Recent traces</h3>
+            <button class="btn" onclick="toggleTracesPanel()">Close</button>
+        </div>
+        <div style="padding: 10px 16px 0;">
+            <input id="traceSearchInput" type="text" placeholder="Search by trace id…"
+                   style="width:100%; background:var(--surface-raised); border:1px solid var(--border-strong); color:var(--text); padding:7px 10px; border-radius:5px; font-family:var(--mono); font-size:12px;"
+                   oninput="loadTraces(this.value)">
+        </div>
+        <div class="modal-body" id="tracesList"></div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="callGraphModal" onclick="closeCallGraphModalOnBackdrop(event)">
+    <div class="modal" style="max-width: 760px;">
+        <div class="modal-head">
+            <h3 style="color: var(--warn);">Call graph — top edges by total time</h3>
+            <button class="btn" onclick="toggleCallGraphPanel()">Close</button>
+        </div>
+        <div class="modal-body">
+            <table>
+                <thead>
+                <tr>
+                    <th>Edge (caller → callee)</th><th class="num">Calls</th><th class="num">Total ms</th>
+                </tr>
+                </thead>
+                <tbody id="callGraphBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop" id="backgroundModal" onclick="closeBackgroundModalOnBackdrop(event)">
+    <div class="modal" style="max-width: 760px;">
+        <div class="modal-head">
+            <h3 style="color: var(--text-muted);">Background roots — Out of HTTP Calls (cache loaders، scheduled jobs،unknown Threads)</h3>
+            <button class="btn" onclick="toggleBackgroundPanel()">Close</button>
+        </div>
+        <div class="modal-body">
+            <table>
+                <thead>
+                <tr>
+                    <th>Key</th><th class="num">Calls</th><th class="num">Avg ms</th><th class="num">Total ms</th>
+                </tr>
+                </thead>
+                <tbody id="backgroundBody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
 <script>
     const COLOR = { cpu: '#3fb1ce', db: '#e0a640', err: '#e0596a', ok: '#4fc98a', muted: '#6b7280', grid: '#1f2530' };
 
@@ -251,6 +369,63 @@
     let selectedEndpoint = null;
     let errorsVisible = false;
     let topCalledVisible = false;
+    let tracesVisible = false;
+    let callGraphVisible = false;
+    let backgroundVisible = false;
+
+    let endpointSearch = '';
+    let endpointLimit = 10;
+    let endpointSort = { by: 'totalTimeMs', dir: 'desc' };
+    let methodSort = { by: 'selfTimeMs', dir: 'desc' };
+    let autoRefreshTimer = null;
+    let autoRefreshPaused = false;
+    let searchDebounceTimer = null;
+
+    function onEndpointSearchInput(value) {
+        clearTimeout(searchDebounceTimer);
+        searchDebounceTimer = setTimeout(() => {
+            endpointSearch = value;
+            refresh();
+        }, 300);
+    }
+
+    function onEndpointLimitChange(value) {
+        endpointLimit = parseInt(value, 10);
+        refresh();
+    }
+
+    function applySort(current, column) {
+        if (current.by === column) {
+            current.dir = current.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+            current.by = column;
+            current.dir = 'desc';
+        }
+    }
+
+    function updateSortHeaders(rowId, sortState) {
+        document.querySelectorAll('#' + rowId + ' th[data-sort]').forEach(th => {
+            th.classList.remove('sorted-asc', 'sorted-desc');
+            if (th.dataset.sort === sortState.by) {
+                th.classList.add(sortState.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
+            }
+        });
+    }
+
+    function toggleAutoRefresh() {
+        autoRefreshPaused = !autoRefreshPaused;
+        const btn = document.getElementById('pauseBtn');
+        if (autoRefreshPaused) {
+            clearInterval(autoRefreshTimer);
+            btn.textContent = '▶ Resume';
+            btn.style.borderColor = 'var(--warn)';
+        } else {
+            btn.textContent = '⏸ Pause';
+            btn.style.borderColor = '';
+            autoRefreshTimer = setInterval(refresh, 3000);
+            refresh();
+        }
+    }
 
     function shortLabel(key) { return key ? key.replace('#', '.') : '-'; }
 
@@ -343,7 +518,11 @@
 
     async function loadMethods(endpointKey) {
       selectedEndpoint = endpointKey;
-      const res = await fetch('/monitor/api/endpoint-methods?key=' + encodeURIComponent(endpointKey));
+      const methodsUrl = new URL('/monitor/api/endpoint-methods', window.location.origin);
+      methodsUrl.searchParams.set('key', endpointKey);
+      methodsUrl.searchParams.set('sortBy', methodSort.by);
+      methodsUrl.searchParams.set('sortDir', methodSort.dir);
+      const res = await fetch(methodsUrl);
       const methods = await res.json();
 
       document.getElementById('methodsSection').style.display = 'block';
@@ -354,12 +533,17 @@
 
       methods.forEach(m => {
         const tr = document.createElement('tr');
+        const n1Badge = m.n1Warning
+          ? `<span class="n1-badge ${m.callsPerRequest >= 50 ? 'severe' : ''}" title="Called on average ${m.callsPerRequest}x per request">⚠ N+1 · ${m.callsPerRequest}×</span>`
+          : '';
         tr.innerHTML = `
-          <td class="name-cell"><span class="method">${m.className}.</span>${m.methodName}</td>
+          <td class="name-cell"><span class="method">${m.className}.</span>${m.methodName}${n1Badge}</td>
           <td>${layerPill(m.layer)}</td>
           <td class="num">${m.callCount}</td>
           <td class="num">${m.errorCount}</td>
           <td class="num ${timeClass(m.selfTimeMs)}">${m.selfTimeMs}</td>
+          <td class="num ${timeClass(m.p95TimeMs)}">${m.p95TimeMs}</td>
+          <td class="num ${timeClass(m.p99TimeMs)}">${m.p99TimeMs}</td>
           <td class="num ${timeClass(m.totalTimeMs)}">${m.totalTimeMs}</td>
           <td class="num ${timeClass(m.dbTimeMs)}">${m.dbTimeMs}</td>
           <td class="num">${m.memoryKb}</td>
@@ -367,12 +551,20 @@
         `;
         tbody.appendChild(tr);
       });
+
+      updateSortHeaders('methodsHeadRow', methodSort);
     }
 
     async function refresh() {
+      const endpointsUrl = new URL('/monitor/api/endpoints', window.location.origin);
+      if (endpointSearch) endpointsUrl.searchParams.set('search', endpointSearch);
+      endpointsUrl.searchParams.set('sortBy', endpointSort.by);
+      endpointsUrl.searchParams.set('sortDir', endpointSort.dir);
+      endpointsUrl.searchParams.set('limit', endpointLimit);
+
       const [overviewRes, endpointsRes] = await Promise.all([
         fetch('/monitor/api/overview'),
-        fetch('/monitor/api/endpoints')
+        fetch(endpointsUrl)
       ]);
       const overview = await overviewRes.json();
       const endpoints = await endpointsRes.json();
@@ -407,6 +599,8 @@
           <td class="num">${ep.callCount}</td>
           <td class="num">${ep.errorCount}</td>
           <td class="num ${timeClass(ep.avgTimeMs)}">${ep.avgTimeMs}</td>
+          <td class="num ${timeClass(ep.p95TimeMs)}">${ep.p95TimeMs}</td>
+          <td class="num ${timeClass(ep.p99TimeMs)}">${ep.p99TimeMs}</td>
           <td class="num ${timeClass(ep.maxTimeMs)}">${ep.maxTimeMs}</td>
           <td class="num ${timeClass(ep.totalTimeMs)}">${ep.totalTimeMs}</td>
           <td class="num ${timeClass(ep.dbTimeMs)}">${ep.dbTimeMs}</td>
@@ -416,6 +610,7 @@
         tbody.appendChild(tr);
       });
 
+      updateSortHeaders('endpointsHeadRow', endpointSort);
       if (selectedEndpoint) loadMethods(selectedEndpoint);
       refreshHeartbeat();
       if (errorsVisible) loadErrors();
@@ -447,6 +642,7 @@
           <div class="err-item-type">${e.exceptionType}</div>
           <div class="err-item-method">${e.method}</div>
           <div class="err-item-msg">${e.message || '(no message)'}</div>
+          <div style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:5px; cursor:pointer;" title="Click To Copy" onclick="navigator.clipboard.writeText('${e.traceId}')">trace: ${e.traceId}</div>
         </div>
       `).join('');
     }
@@ -535,9 +731,119 @@
         }).join('');
     }
 
+<!--    trace-->
+    function closeTracesModalOnBackdrop(event) {
+        if (event.target.id === 'tracesModal') toggleTracesPanel();
+    }
+
+    async function toggleTracesPanel() {
+        tracesVisible = !tracesVisible;
+        document.getElementById('tracesModal').style.display = tracesVisible ? 'flex' : 'none';
+        if (tracesVisible) await loadTraces('');
+    }
+
+    async function loadTraces(query) {
+        const url = query ? '/monitor/api/traces?traceId=' + encodeURIComponent(query) : '/monitor/api/traces';
+        const res = await fetch(url);
+        const items = await res.json();
+        const container = document.getElementById('tracesList');
+
+        if (items.length === 0) {
+            container.innerHTML = '<div class="empty-note">Nothing was found</div>';
+            return;
+        }
+
+        container.innerHTML = items.map(t => `
+            <div class="err-item" style="border-left-color:${t.error ? 'var(--err)' : 'var(--border-strong)'};">
+                <div class="err-item-top">
+                    <span style="cursor:pointer;" title="Click To Copy" onclick="navigator.clipboard.writeText('${t.traceId}')">${t.traceId}</span>
+                    <span>${new Date(t.time).toLocaleString()}</span>
+                </div>
+                <div class="err-item-method">${t.endpoint} — ${t.durationMs} ms ${t.error ? '<span style="color:var(--err);">(error)</span>' : ''}</div>
+            </div>
+        `).join('');
+    }
+
+<!--    graph section-->
+
+    function closeCallGraphModalOnBackdrop(event) {
+        if (event.target.id === 'callGraphModal') toggleCallGraphPanel();
+    }
+
+    async function toggleCallGraphPanel() {
+        callGraphVisible = !callGraphVisible;
+        document.getElementById('callGraphModal').style.display = callGraphVisible ? 'flex' : 'none';
+        if (callGraphVisible) await loadCallGraph();
+    }
+
+    async function loadCallGraph() {
+        const res = await fetch('/monitor/api/call-graph');
+        const edges = await res.json();
+        const tbody = document.getElementById('callGraphBody');
+
+        if (edges.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="3" class="empty-note">No data yet.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = edges.map(e => `
+            <tr>
+                <td class="mono" style="font-size:12px;">${shortLabel(e.edge.split(' -> ')[0])} <span style="color:var(--text-dim);">→</span> ${shortLabel(e.edge.split(' -> ')[1])}</td>
+                <td class="num">${e.callCount}</td>
+                <td class="num ${timeClass(e.totalTimeMs)}">${e.totalTimeMs}</td>
+            </tr>
+        `).join('');
+    }
+
+    function closeBackgroundModalOnBackdrop(event) {
+        if (event.target.id === 'backgroundModal') toggleBackgroundPanel();
+    }
+
+    async function toggleBackgroundPanel() {
+        backgroundVisible = !backgroundVisible;
+        document.getElementById('backgroundModal').style.display = backgroundVisible ? 'flex' : 'none';
+        if (backgroundVisible) await loadBackgroundRoots();
+    }
+
+    async function loadBackgroundRoots() {
+        const res = await fetch('/monitor/api/background-roots');
+        const items = await res.json();
+        const tbody = document.getElementById('backgroundBody');
+
+        if (items.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="empty-note">Nothing recorded yet.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = items.map(ep => `
+            <tr>
+                <td class="mono">${shortLabel(ep.key)}</td>
+                <td class="num">${ep.callCount}</td>
+                <td class="num">${ep.avgTimeMs}</td>
+                <td class="num ${timeClass(ep.totalTimeMs)}">${ep.totalTimeMs}</td>
+            </tr>
+        `).join('');
+    }
+
     initHeartbeatChart();
     refresh();
-    setInterval(refresh, 3000);
+
+    document.getElementById('endpointsHeadRow').addEventListener('click', (e) => {
+        const th = e.target.closest('th[data-sort]');
+        if (!th) return;
+        applySort(endpointSort, th.dataset.sort);
+        refresh();
+    });
+
+    document.getElementById('methodsHeadRow').addEventListener('click', (e) => {
+        const th = e.target.closest('th[data-sort]');
+        if (!th) return;
+        applySort(methodSort, th.dataset.sort);
+        if (selectedEndpoint) loadMethods(selectedEndpoint);
+    });
+
+
+    autoRefreshTimer = setInterval(refresh, 3000);
 </script>
 </body>
 </html>

@@ -57,7 +57,7 @@ public class JlamaProvider implements AiAnalysisProvider {
 
         for (String fileName : MODEL_FILES) {
             ClassPathResource resource = new ClassPathResource(BUNDLED_MODEL_RESOURCE_PATH + "/" + fileName);
-            if (!resource.exists()) continue; // tokenizer_config.json etc. may not always be present
+            if (!resource.exists()) continue;
 
             File targetFile = new File(targetDir, fileName);
             if (targetFile.exists()) continue;
@@ -89,8 +89,6 @@ public class JlamaProvider implements AiAnalysisProvider {
         String rawOutput = response.responseText;
 
         String parsed = parseLineFormatToJson(rawOutput);
-        // If parsing found nothing usable, fall back to the raw model output so it's visible for debugging
-        // instead of silently rendering an empty result.
         return "[]".equals(parsed) ? rawOutput : parsed;
     }
 
