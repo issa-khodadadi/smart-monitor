@@ -18,7 +18,7 @@ public class SmartMonitorProperties {
     @Getter
     public static class Ai {
         private boolean enabled = false;
-        private String provider = "openai"; // openai | anthropic
+        private String provider = "openai";
         private String apiKey;
         private String model = "gpt-4o-mini";
         private int cacheSeconds = 300;

@@ -27,8 +27,37 @@ public class MonitoringAspect {
 
         CallStack.Frame parent = CallStack.peekParent();
         String rootKeyBeforePush = CallStack.rootKey();
-        boolean isRoot = rootKeyBeforePush == null;
-        String endpointKey = isRoot ? key : rootKeyBeforePush;
+        boolean isRootByStack = rootKeyBeforePush == null;
+
+        String traceId = TraceContext.get();
+        boolean hasTrace = traceId != null && !traceId.isBlank();
+        String knownHttpEndpoint = HttpEndpointContext.get();
+
+        boolean isFreshHttpRoot = isRootByStack && hasTrace && knownHttpEndpoint == null;
+        boolean isPostRootContinuation = isRootByStack && hasTrace && knownHttpEndpoint != null;
+        boolean isBackgroundRoot = isRootByStack && !hasTrace;
+
+        boolean isRoot = isFreshHttpRoot || isBackgroundRoot;
+        boolean isHttpOrigin = isFreshHttpRoot || isPostRootContinuation;
+
+        String endpointKey;
+        if (isFreshHttpRoot) {
+            endpointKey = key;
+            HttpEndpointContext.set(key);
+        } else if (isPostRootContinuation) {
+            endpointKey = knownHttpEndpoint;
+        } else if (isBackgroundRoot) {
+            endpointKey = key;
+        } else {
+            endpointKey = rootKeyBeforePush;
+        }
+
+        boolean generatedTraceId = false;
+        if (isBackgroundRoot) {
+            traceId = java.util.UUID.randomUUID().toString();
+            TraceContext.set(traceId);
+            generatedTraceId = true;
+        }
 
         CallStack.Frame frame = CallStack.push(key);
 
@@ -40,8 +69,8 @@ public class MonitoringAspect {
             return pjp.proceed();
         } catch (Throwable t) {
             isError = true;
-            if (isRoot) {  // NEW — only record the error once, at the endpoint level
-                registry.recordError(endpointKey, className, methodName, t.getClass().getSimpleName(), t.getMessage());
+            if (isRoot) {
+                registry.recordError(traceId, endpointKey, className, methodName, t.getClass().getSimpleName(), t.getMessage());
             }
             throw t;
         } finally {
@@ -51,10 +80,10 @@ public class MonitoringAspect {
 
             registry.record(className, methodName, layer, duration, isError, memoryDelta);
 
-            long selfTime = duration - frame.childTimeNanos;
+            long selfTime = duration - frame.childTimeNanos.get();
             registry.addSelfTime(key, selfTime);
 
-            registry.recordToEndpoint(endpointKey, className, methodName, layer, duration, selfTime, isError, memoryDelta, isRoot);
+            registry.recordToEndpoint(endpointKey, className, methodName, layer, duration, selfTime, isError, memoryDelta, isRoot, isHttpOrigin);
 
             if ("REPOSITORY".equals(layer)) {
                 if (parent != null) registry.addDbTimeToCaller(parent.key, duration);
@@ -63,9 +92,18 @@ public class MonitoringAspect {
 
             CallStack.pop();
 
+            CallStack.pop();
+
             if (parent != null) {
-                parent.childTimeNanos += duration;
+                parent.childTimeNanos.addAndGet(duration);
                 registry.recordEdge(parent.key, key, duration);
+            }
+
+            if (isRoot) {
+                registry.recordTrace(traceId, endpointKey, duration, isError);
+                if (generatedTraceId) {
+                    TraceContext.clear();
+                }
             }
         }
     }

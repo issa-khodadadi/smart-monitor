@@ -20,6 +20,7 @@ public class EndpointStats {
     private final AtomicLong dbTimeNanos = new AtomicLong(0);
     private final AtomicLong memoryBytes = new AtomicLong(0);
     private final AtomicLong lastAccessMillis = new AtomicLong(System.currentTimeMillis());
+    private final LatencyReservoir latencyReservoir = new LatencyReservoir(512);
 
     private final ConcurrentHashMap<String, MethodStats> methods = new ConcurrentHashMap<>();
 
@@ -32,6 +33,7 @@ public class EndpointStats {
         if (isError) errorCount.increment();
         totalTimeNanos.addAndGet(durationNanos);
         maxTimeNanos.updateAndGet(current -> Math.max(current, durationNanos));
+        latencyReservoir.record(durationNanos);
         this.memoryBytes.addAndGet(Math.max(memoryBytes, 0));
         lastAccessMillis.set(System.currentTimeMillis());
     }
@@ -53,6 +55,8 @@ public class EndpointStats {
 
     public double totalTimeMs() { return totalTimeNanos.get() / 1_000_000.0; }
     public double maxTimeMs() { return maxTimeNanos.get() / 1_000_000.0; }
+    public double p95TimeMs() { return latencyReservoir.percentileMs(95); }
+    public double p99TimeMs() { return latencyReservoir.percentileMs(99); }
     public double avgTimeMs() {
         long calls = callCount.sum();
         return calls == 0 ? 0 : (totalTimeNanos.get() / (double) calls) / 1_000_000.0;

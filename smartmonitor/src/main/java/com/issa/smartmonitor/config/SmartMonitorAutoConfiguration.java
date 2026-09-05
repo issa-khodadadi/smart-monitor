@@ -2,12 +2,16 @@ package com.issa.smartmonitor.config;
 
 import com.issa.smartmonitor.ai.AiAnalysisService;
 import com.issa.smartmonitor.aspect.MonitoringAspect;
+import com.issa.smartmonitor.aspect.MonitoringTaskDecoratorBeanPostProcessor;
 import com.issa.smartmonitor.core.*;
+import com.issa.smartmonitor.web.TraceIdFilter;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.Ordered;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @AutoConfiguration
@@ -49,5 +53,18 @@ public class SmartMonitorAutoConfiguration {
     @Bean
     public MetricSnapshotTask metricSnapshotTask(MetricRegistry registry, MetricHistory history) {
         return new MetricSnapshotTask(registry, history);
+    }
+
+    @Bean
+    public static MonitoringTaskDecoratorBeanPostProcessor monitoringTaskDecoratorBeanPostProcessor() {
+        return new MonitoringTaskDecoratorBeanPostProcessor();
+    }
+
+    @Bean
+    public FilterRegistrationBean<TraceIdFilter> traceIdFilter() {
+        FilterRegistrationBean<TraceIdFilter> reg = new FilterRegistrationBean<>(new TraceIdFilter());
+        reg.setOrder(Ordered.HIGHEST_PRECEDENCE);
+        reg.addUrlPatterns("/*");
+        return reg;
     }
 }

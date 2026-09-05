@@ -1,9 +1,6 @@
 package com.issa.smartmonitor.core;
 
-import com.issa.smartmonitor.model.CallCounter;
-import com.issa.smartmonitor.model.EndpointStats;
-import com.issa.smartmonitor.model.ErrorEntry;
-import com.issa.smartmonitor.model.MethodStats;
+import com.issa.smartmonitor.model.*;
 import lombok.Getter;
 
 import java.util.*;
@@ -17,9 +14,12 @@ public class MetricRegistry {
     private final ConcurrentHashMap<String, EndpointStats> endpoints = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LongAdder> edgeTimeNanos = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LongAdder> edgeCallCount = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, EndpointStats> backgroundRoots = new ConcurrentHashMap<>();
 
     @Getter
     private final CallCounter permanentCallCounter = new CallCounter();
+    @Getter
+    private final CallCounter permanentBackgroundCallCounter = new CallCounter();
 
     private final int maxEndpoints;
     private final int maxMethodsPerEndpoint;
@@ -27,6 +27,10 @@ public class MetricRegistry {
     private final Deque<ErrorEntry> recentErrors = new ArrayDeque<>();
     private final Object errorsLock = new Object();
     private static final int MAX_ERRORS = 50;
+
+    private final Deque<RequestTrace> recentTraces = new ArrayDeque<>();
+    private final Object tracesLock = new Object();
+    private static final int MAX_TRACES = 200;
 
     public MetricRegistry(int maxEndpoints, int maxMethodsPerEndpoint) {
         this.maxEndpoints = maxEndpoints;
@@ -40,19 +44,26 @@ public class MetricRegistry {
     }
 
     public void recordToEndpoint(String endpointKey, String className, String methodName, String layer,
-                                 long durationNanos, long selfTimeNanos, boolean isError, long memoryBytes, boolean isRoot) {
+                                 long durationNanos, long selfTimeNanos, boolean isError, long memoryBytes, boolean isRoot, boolean isHttpOrigin) {
+
+        ConcurrentHashMap<String, EndpointStats> targetMap = isHttpOrigin ? endpoints : backgroundRoots;
+
         if (isRoot) {
-            permanentCallCounter.increment(endpointKey); // NEW — never evicted, survives rolling window cleanup
+            if (isHttpOrigin) {
+                permanentCallCounter.increment(endpointKey);
+            } else {
+                permanentBackgroundCallCounter.increment(endpointKey);
+            }
         }
 
-        EndpointStats ep = endpoints.get(endpointKey);
+        EndpointStats ep = targetMap.get(endpointKey);
         if (ep == null) {
-            if (endpoints.size() >= maxEndpoints) {
-                endpoints.values().stream()
+            if (targetMap.size() >= maxEndpoints) {
+                targetMap.values().stream()
                         .min(Comparator.comparingLong(EndpointStats::lastAccessMillis))
-                        .ifPresent(oldest -> endpoints.remove(oldest.getEndpointKey()));
+                        .ifPresent(oldest -> targetMap.remove(oldest.getEndpointKey()));
             }
-            ep = endpoints.computeIfAbsent(endpointKey, EndpointStats::new);
+            ep = targetMap.computeIfAbsent(endpointKey, EndpointStats::new);
         }
         if (isRoot) ep.recordRootCall(durationNanos, isError, memoryBytes);
 
@@ -99,8 +110,8 @@ public class MetricRegistry {
     public Collection<MethodStats> getAll() { return stats.values(); }
     public Collection<EndpointStats> getEndpoints() { return endpoints.values(); }
     public EndpointStats getEndpoint(String key) { return endpoints.get(key); }
+    public Collection<EndpointStats> getBackgroundRoots() { return backgroundRoots.values(); }
 
-    /** Removes endpoints (and their edges) not accessed within windowMillis. */
     public void evictOlderThan(long windowMillis) {
         long cutoff = System.currentTimeMillis() - windowMillis;
 
@@ -115,11 +126,13 @@ public class MetricRegistry {
             edgeTimeNanos.keySet().removeIf(edge -> removedEndpointKeys.stream().anyMatch(edge::startsWith));
             edgeCallCount.keySet().removeIf(edge -> removedEndpointKeys.stream().anyMatch(edge::startsWith));
         }
+
+        backgroundRoots.entrySet().removeIf(e -> e.getValue().lastAccessMillis() < cutoff);
     }
 
-    public void recordError(String endpointKey, String className, String methodName, String exceptionType, String message) {
+    public void recordError(String traceId, String endpointKey, String className, String methodName, String exceptionType, String message) {
         synchronized (errorsLock) {
-            recentErrors.addFirst(new ErrorEntry(System.currentTimeMillis(), endpointKey, className, methodName, exceptionType, message));
+            recentErrors.addFirst(new ErrorEntry(System.currentTimeMillis(), traceId, endpointKey, className, methodName, exceptionType, message));
             while (recentErrors.size() > MAX_ERRORS) {
                 recentErrors.removeLast();
             }
@@ -129,6 +142,21 @@ public class MetricRegistry {
     public List<ErrorEntry> getRecentErrors() {
         synchronized (errorsLock) {
             return List.copyOf(recentErrors);
+        }
+    }
+
+    public void recordTrace(String traceId, String endpointKey, long durationNanos, boolean isError) {
+        synchronized (tracesLock) {
+            recentTraces.addFirst(new RequestTrace(System.currentTimeMillis(), traceId, endpointKey, durationNanos / 1_000_000.0, isError));
+            while (recentTraces.size() > MAX_TRACES) {
+                recentTraces.removeLast();
+            }
+        }
+    }
+
+    public List<RequestTrace> getRecentTraces() {
+        synchronized (tracesLock) {
+            return List.copyOf(recentTraces);
         }
     }
 }

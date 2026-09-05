@@ -5,12 +5,10 @@ import lombok.Getter;
 
 @Getter
 @AllArgsConstructor
-public class ErrorEntry {
+public class RequestTrace {
     private final long timestampMillis;
     private final String traceId;
     private final String endpointKey;
-    private final String className;
-    private final String methodName;
-    private final String exceptionType;
-    private final String message;
+    private final double durationMs;
+    private final boolean error;
 }
