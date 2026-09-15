@@ -360,6 +360,8 @@
 </div>
 
 <script>
+    const BASE = window.SMARTMONITOR_BASE_PATH || '';
+
     const COLOR = { cpu: '#3fb1ce', db: '#e0a640', err: '#e0596a', ok: '#4fc98a', muted: '#6b7280', grid: '#1f2530' };
 
     const TIME_HOT_MS = 5000;
@@ -508,7 +510,7 @@
     }
 
     async function refreshHeartbeat() {
-      const res = await fetch('/monitor/api/history');
+      const res = await fetch(BASE + '/monitor/api/history');
       const points = await res.json();
       heartbeatChart.data.labels = points.map(p => new Date(p.time).toLocaleTimeString());
       heartbeatChart.data.datasets[0].data = points.map(p => p.cpuTimeMsPerSec);
@@ -518,7 +520,7 @@
 
     async function loadMethods(endpointKey) {
       selectedEndpoint = endpointKey;
-      const methodsUrl = new URL('/monitor/api/endpoint-methods', window.location.origin);
+      const methodsUrl = new URL(BASE + '/monitor/api/endpoint-methods', window.location.origin);
       methodsUrl.searchParams.set('key', endpointKey);
       methodsUrl.searchParams.set('sortBy', methodSort.by);
       methodsUrl.searchParams.set('sortDir', methodSort.dir);
@@ -556,14 +558,14 @@
     }
 
     async function refresh() {
-      const endpointsUrl = new URL('/monitor/api/endpoints', window.location.origin);
+      const endpointsUrl = new URL(BASE + '/monitor/api/endpoints', window.location.origin);
       if (endpointSearch) endpointsUrl.searchParams.set('search', endpointSearch);
       endpointsUrl.searchParams.set('sortBy', endpointSort.by);
       endpointsUrl.searchParams.set('sortDir', endpointSort.dir);
       endpointsUrl.searchParams.set('limit', endpointLimit);
 
       const [overviewRes, endpointsRes] = await Promise.all([
-        fetch('/monitor/api/overview'),
+        fetch(BASE + '/monitor/api/overview'),
         fetch(endpointsUrl)
       ]);
       const overview = await overviewRes.json();
@@ -627,7 +629,7 @@
     }
 
     async function loadErrors() {
-      const res = await fetch('/monitor/api/errors');
+      const res = await fetch(BASE + '/monitor/api/errors');
       const errors = await res.json();
       const container = document.getElementById('errorsList');
 
@@ -678,7 +680,7 @@
       document.getElementById('aiResults').innerHTML = '<div class="empty-note">Analyzing…</div>';
 
       try {
-        const res = await fetch('/monitor/api/ai-analysis?refresh=' + forceRefresh, { method: 'POST' });
+        const res = await fetch(BASE + '/monitor/api/ai-analysis?refresh=' + forceRefresh, { method: 'POST' });
         const data = await res.json();
         if (!res.ok) {
           document.getElementById('aiResults').innerHTML = `<div class="empty-note" style="color:var(--err);">${data.error}</div>`;
@@ -705,7 +707,7 @@
     }
 
     async function loadTopCalled() {
-        const res = await fetch('/monitor/api/top-called');
+        const res = await fetch(BASE + '/monitor/api/top-called');
         const items = await res.json();
         const container = document.getElementById('topCalledList');
 
@@ -743,7 +745,7 @@
     }
 
     async function loadTraces(query) {
-        const url = query ? '/monitor/api/traces?traceId=' + encodeURIComponent(query) : '/monitor/api/traces';
+        const url = query ? BASE+ '/monitor/api/traces?traceId=' + encodeURIComponent(query) : BASE + '/monitor/api/traces';
         const res = await fetch(url);
         const items = await res.json();
         const container = document.getElementById('tracesList');
@@ -777,7 +779,7 @@
     }
 
     async function loadCallGraph() {
-        const res = await fetch('/monitor/api/call-graph');
+        const res = await fetch(BASE + '/monitor/api/call-graph');
         const edges = await res.json();
         const tbody = document.getElementById('callGraphBody');
 
@@ -806,7 +808,7 @@
     }
 
     async function loadBackgroundRoots() {
-        const res = await fetch('/monitor/api/background-roots');
+        const res = await fetch(BASE+ '/monitor/api/background-roots');
         const items = await res.json();
         const tbody = document.getElementById('backgroundBody');
 
