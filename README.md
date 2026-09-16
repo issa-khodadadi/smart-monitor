@@ -16,6 +16,8 @@ A typical monitoring setup means standing up a separate stack — agent, collect
 
 SmartMonitor takes the opposite approach: add the dependency, and you get a dashboard. It uses Spring AOP to transparently wrap your `@Service`, `@Repository`, `@Controller`, and `@RestController` methods, records timing, DB, and memory metrics in-process, and serves a self-contained dashboard at `/monitor` — no annotations, no bean registration, no external infrastructure.
 
+<img width="1269" height="750" alt="Screenshot 2026-09-16 124100" src="https://github.com/user-attachments/assets/a8ef830c-16ae-46b1-bcf4-d56c2b4d4fec" />
+
 ## Features
 
 | Feature | Description |
