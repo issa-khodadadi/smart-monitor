@@ -1,0 +1,153 @@
+# Shipped defaults for SmartMonitor. Application config overrides any key.
+# Behavioral numbers and text live here so the Java sources stay free of them.
+
+smartmonitor:
+  window-minutes: 15
+  cleanup-interval-millis: 60000
+  max-endpoints: 200
+  max-methods-per-endpoint: 100
+
+  paths:
+    page: /monitor
+    permit-pattern: /monitor/**
+    overview: /monitor/api/overview
+    endpoints: /monitor/api/endpoints
+    endpoint-methods: /monitor/api/endpoint-methods
+    analyze: /monitor/api/analyze
+    history: /monitor/api/history
+    errors: /monitor/api/errors
+    top-called: /monitor/api/top-called
+    traces: /monitor/api/traces
+    call-graph: /monitor/api/call-graph
+    background-roots: /monitor/api/background-roots
+
+  params:
+    search: search
+    sort-by: sortBy
+    sort-dir: sortDir
+    limit: limit
+    key: key
+    refresh: refresh
+    trace-id: traceId
+
+  views:
+    resource: smartmonitor/monitor-views.json
+    overview: overview
+    endpoints: endpoints
+    endpoint-methods: endpoint-methods
+    analyze: analyze
+    history: history
+    errors: errors
+    top-called: top-called
+    traces: traces
+    call-graph: call-graph
+    background-roots: background-roots
+
+  limits:
+    top-n: 10
+    overview-top: 5
+    default-page-size: 10
+    max-page-size: 200
+    min-page-size: 1
+    top-called: 20
+    call-graph-edges: 20
+    max-errors: 50
+    max-traces: 200
+    chart-top: 5
+    fragment-min-distinct-keys: 1
+
+  sort:
+    endpoints-by: totalTimeMs
+    endpoints-dir: desc
+    methods-by: selfTimeMs
+    methods-dir: desc
+    ascending: asc
+    descending: desc
+
+  thresholds:
+    n1-calls-per-request: 10
+    n1-severe-calls-per-request: 50
+    endpoint-db-ratio: 0.4
+    endpoint-error-rate: 0.05
+    method-db-ratio: 0.6
+    hot-time-ms: 5000
+    warn-time-ms: 500
+
+  reservoir:
+    capacity: 512
+    p95: 95
+    p99: 99
+
+  units:
+    nanos-per-milli: 1000000
+    bytes-per-kb: 1024
+    millis-per-second: 1000
+    millis-per-minute: 60000
+    round-factor: 100
+    percent-scale: 100
+
+  format:
+    key-separator: "#"
+    display-separator: "."
+    edge-separator: " -> "
+    empty-label: "-"
+    repository-layer: REPOSITORY
+
+  history:
+    sample-millis: 2000
+    max-points: 60
+    min-elapsed-seconds: 1
+
+  ui:
+    refresh-millis: 3000
+    search-debounce-millis: 300
+    clock-millis: 1000
+    page-size-prefix: "Top "
+    page-size-options:
+      - 10
+      - 25
+      - 50
+      - 100
+
+  http:
+    ok: 200
+    unavailable: 503
+    error: 500
+
+  codes:
+    ok: OK
+    disabled: ANALYZE_DISABLED
+    failed: ANALYZE_FAILED
+
+  messages:
+    ai-disabled: AI analysis is not enabled on this project.
+    ai-failed: Analysis failed.
+    analyzing: Analyzing…
+    request-failed: Request failed.
+    no-data: No data
+    no-samples: No requests in the current window yet. Generate some traffic, then analyze again.
+    missing-endpoint: Unknown endpoint.
+
+  resources:
+    page-template: templates/monitor.html
+
+  trace:
+    url-pattern: "/*"
+    mdc-key: traceId
+    response-header: X-Trace-Id
+    trace-parent-header: traceparent
+    trace-parent-separator: "-"
+    trace-parent-index: 1
+    inbound-headers:
+      - X-Request-Id
+      - X-Correlation-Id
+      - X-Trace-Id
+
+  ai:
+    enabled: true
+    provider: diagnostic
+    cache-seconds: 15
+    model-resource: models/diagnostic/model.json
+    max-findings: 3
+    healthy-label: HEALTHY
+    empty-confidence: 1

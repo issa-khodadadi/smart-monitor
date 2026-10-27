@@ -1,5 +1,6 @@
 package com.issa.smartmonitor.core;
 
+import com.issa.smartmonitor.config.SmartMonitorProperties;
 import com.issa.smartmonitor.model.*;
 import lombok.Getter;
 
@@ -10,7 +11,6 @@ import java.util.stream.Collectors;
 
 public class MetricRegistry {
 
-    private final ConcurrentHashMap<String, MethodStats> stats = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, EndpointStats> endpoints = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LongAdder> edgeTimeNanos = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LongAdder> edgeCallCount = new ConcurrentHashMap<>();
@@ -23,24 +23,19 @@ public class MetricRegistry {
 
     private final int maxEndpoints;
     private final int maxMethodsPerEndpoint;
+    @Getter
+    private final MonitorTuning tuning;
 
     private final Deque<ErrorEntry> recentErrors = new ArrayDeque<>();
     private final Object errorsLock = new Object();
-    private static final int MAX_ERRORS = 50;
 
     private final Deque<RequestTrace> recentTraces = new ArrayDeque<>();
     private final Object tracesLock = new Object();
-    private static final int MAX_TRACES = 200;
 
-    public MetricRegistry(int maxEndpoints, int maxMethodsPerEndpoint) {
-        this.maxEndpoints = maxEndpoints;
-        this.maxMethodsPerEndpoint = maxMethodsPerEndpoint;
-    }
-
-    public void record(String className, String methodName, String layer, long durationNanos, boolean isError, long memoryBytes) {
-        String key = className + "#" + methodName;
-        stats.computeIfAbsent(key, k -> new MethodStats(className, methodName, layer))
-                .record(durationNanos, isError, memoryBytes);
+    public MetricRegistry(SmartMonitorProperties properties) {
+        this.maxEndpoints = properties.getMaxEndpoints();
+        this.maxMethodsPerEndpoint = properties.getMaxMethodsPerEndpoint();
+        this.tuning = MonitorTuning.from(properties);
     }
 
     public void recordToEndpoint(String endpointKey, String className, String methodName, String layer,
@@ -63,7 +58,7 @@ public class MetricRegistry {
                         .min(Comparator.comparingLong(EndpointStats::lastAccessMillis))
                         .ifPresent(oldest -> targetMap.remove(oldest.getEndpointKey()));
             }
-            ep = targetMap.computeIfAbsent(endpointKey, EndpointStats::new);
+            ep = targetMap.computeIfAbsent(endpointKey, key -> new EndpointStats(key, tuning));
         }
         if (isRoot) ep.recordRootCall(durationNanos, isError, memoryBytes);
 
@@ -72,23 +67,13 @@ public class MetricRegistry {
         ms.addSelfTime(selfTimeNanos);
     }
 
-    public void addDbTimeToCaller(String key, long durationNanos) {
-        MethodStats s = stats.get(key);
-        if (s != null) s.addDbTime(durationNanos);
-    }
-
     public void addDbTimeToEndpoint(String endpointKey, long durationNanos) {
         EndpointStats ep = endpoints.get(endpointKey);
         if (ep != null) ep.addDbTime(durationNanos);
     }
 
-    public void addSelfTime(String key, long durationNanos) {
-        MethodStats s = stats.get(key);
-        if (s != null) s.addSelfTime(durationNanos);
-    }
-
     public void recordEdge(String parentKey, String childKey, long durationNanos) {
-        String edge = parentKey + " -> " + childKey;
+        String edge = parentKey + tuning.edgeSeparator() + childKey;
         edgeTimeNanos.computeIfAbsent(edge, k -> new LongAdder()).add(durationNanos);
         edgeCallCount.computeIfAbsent(edge, k -> new LongAdder()).increment();
     }
@@ -96,18 +81,17 @@ public class MetricRegistry {
     public List<Map<String, Object>> getCallGraph() {
         return edgeTimeNanos.entrySet().stream()
                 .sorted((a, b) -> Long.compare(b.getValue().sum(), a.getValue().sum()))
-                .limit(20)
+                .limit(tuning.callGraphLimit())
                 .map(e -> {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("edge", e.getKey());
-                    m.put("totalTimeMs", Math.round((e.getValue().sum() / 1_000_000.0) * 100.0) / 100.0);
+                    m.put("totalTimeMs", tuning.round(tuning.ms(e.getValue().sum())));
                     m.put("callCount", edgeCallCount.get(e.getKey()).sum());
                     return m;
                 })
                 .collect(Collectors.toList());
     }
 
-    public Collection<MethodStats> getAll() { return stats.values(); }
     public Collection<EndpointStats> getEndpoints() { return endpoints.values(); }
     public EndpointStats getEndpoint(String key) { return endpoints.get(key); }
     public Collection<EndpointStats> getBackgroundRoots() { return backgroundRoots.values(); }
@@ -133,7 +117,7 @@ public class MetricRegistry {
     public void recordError(String traceId, String endpointKey, String className, String methodName, String exceptionType, String message) {
         synchronized (errorsLock) {
             recentErrors.addFirst(new ErrorEntry(System.currentTimeMillis(), traceId, endpointKey, className, methodName, exceptionType, message));
-            while (recentErrors.size() > MAX_ERRORS) {
+            while (recentErrors.size() > tuning.maxErrors()) {
                 recentErrors.removeLast();
             }
         }
@@ -147,8 +131,8 @@ public class MetricRegistry {
 
     public void recordTrace(String traceId, String endpointKey, long durationNanos, boolean isError) {
         synchronized (tracesLock) {
-            recentTraces.addFirst(new RequestTrace(System.currentTimeMillis(), traceId, endpointKey, durationNanos / 1_000_000.0, isError));
-            while (recentTraces.size() > MAX_TRACES) {
+            recentTraces.addFirst(new RequestTrace(System.currentTimeMillis(), traceId, endpointKey, tuning.ms(durationNanos), isError));
+            while (recentTraces.size() > tuning.maxTraces()) {
                 recentTraces.removeLast();
             }
         }

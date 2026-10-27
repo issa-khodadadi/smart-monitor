@@ -12,7 +12,7 @@ public class MetricSnapshotTask {
         this.history = history;
     }
 
-    @Scheduled(fixedDelay = 2000L)
+    @Scheduled(fixedDelayString = "${smartmonitor.history.sample-millis}")
     public void sample() {
         history.sample(registry);
     }

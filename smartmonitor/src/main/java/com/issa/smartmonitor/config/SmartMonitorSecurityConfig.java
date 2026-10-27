@@ -15,9 +15,9 @@ public class SmartMonitorSecurityConfig {
 
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
-    public SecurityFilterChain smartMonitorSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain smartMonitorSecurityFilterChain(HttpSecurity http, SmartMonitorProperties properties) throws Exception {
         http
-                .securityMatcher("/monitor/**")
+                .securityMatcher(properties.getPaths().getPermitPattern())
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .csrf(AbstractHttpConfigurer::disable);
         return http.build();

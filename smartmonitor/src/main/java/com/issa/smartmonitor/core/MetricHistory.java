@@ -14,13 +14,15 @@ public class MetricHistory {
     private final Deque<MetricSnapshot> snapshots = new ArrayDeque<>();
     private final ReentrantLock lock = new ReentrantLock();
 
+    private final MonitorTuning tuning;
     private double lastTotalTimeMs = 0;
     private double lastDbTimeMs = 0;
     private long lastErrorCount = 0;
     private long lastSampleMillis = System.currentTimeMillis();
 
-    public MetricHistory(int maxPoints) {
+    public MetricHistory(int maxPoints, MonitorTuning tuning) {
         this.maxPoints = maxPoints;
+        this.tuning = tuning;
     }
 
     public void sample(MetricRegistry registry) {
@@ -35,7 +37,7 @@ public class MetricHistory {
             totalErrors += ep.getErrorCount().sum();
         }
 
-        double elapsedSeconds = Math.max((now - lastSampleMillis) / 1000.0, 1.0);
+        double elapsedSeconds = Math.max((now - lastSampleMillis) / tuning.millisPerSecond(), tuning.minElapsedSeconds());
 
         double dbDelta = Math.max(dbTime - lastDbTimeMs, 0);
         double totalDelta = Math.max(totalTime - lastTotalTimeMs, 0);
@@ -73,6 +75,6 @@ public class MetricHistory {
     }
 
     private double round(double v) {
-        return Math.round(v * 100.0) / 100.0;
+        return tuning.round(v);
     }
 }

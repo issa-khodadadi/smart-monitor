@@ -1,16 +1,21 @@
 package com.issa.smartmonitor.aspect;
 
+import com.issa.smartmonitor.config.SmartMonitorProperties;
 import com.issa.smartmonitor.core.MetricRegistry;
 import com.issa.smartmonitor.enums.Layer;
-import lombok.AllArgsConstructor;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 
 @Aspect
-@AllArgsConstructor
 public class MonitoringAspect {
     private final MetricRegistry registry;
+    private final SmartMonitorProperties properties;
+
+    public MonitoringAspect(MetricRegistry registry, SmartMonitorProperties properties) {
+        this.registry = registry;
+        this.properties = properties;
+    }
 
     @Around("(within(@org.springframework.stereotype.Service *) || " +
             "within(@org.springframework.stereotype.Repository *) || " +
@@ -23,7 +28,7 @@ public class MonitoringAspect {
         String className = pjp.getTarget().getClass().getSimpleName();
         String methodName = pjp.getSignature().getName();
         String layer = detectLayer(pjp.getTarget().getClass());
-        String key = className + "#" + methodName;
+        String key = className + properties.getFormat().getKeySeparator() + methodName;
 
         CallStack.Frame parent = CallStack.peekParent();
         String rootKeyBeforePush = CallStack.rootKey();
@@ -78,19 +83,12 @@ public class MonitoringAspect {
             long memAfter = runtime.totalMemory() - runtime.freeMemory();
             long memoryDelta = Math.max(memAfter - memBefore, 0);
 
-            registry.record(className, methodName, layer, duration, isError, memoryDelta);
-
             long selfTime = duration - frame.childTimeNanos.get();
-            registry.addSelfTime(key, selfTime);
-
             registry.recordToEndpoint(endpointKey, className, methodName, layer, duration, selfTime, isError, memoryDelta, isRoot, isHttpOrigin);
 
-            if ("REPOSITORY".equals(layer)) {
-                if (parent != null) registry.addDbTimeToCaller(parent.key, duration);
+            if (properties.getFormat().getRepositoryLayer().equals(layer)) {
                 registry.addDbTimeToEndpoint(endpointKey, duration);
             }
-
-            CallStack.pop();
 
             CallStack.pop();
 
@@ -116,9 +114,6 @@ public class MonitoringAspect {
                 clazz.isAnnotationPresent(org.springframework.stereotype.Controller.class))
             return Layer.CONTROLLER.name();
 
-        if (clazz.isAnnotationPresent(org.springframework.stereotype.Service.class))
-            return Layer.SERVICE.name();
-
-        return Layer.OTHER.name();
+        return Layer.SERVICE.name();
     }
 }

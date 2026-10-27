@@ -11,11 +11,6 @@ public class CallCounter {
         counts.computeIfAbsent(endpointKey, k -> new LongAdder()).increment();
     }
 
-    public long get(String endpointKey) {
-        LongAdder adder = counts.get(endpointKey);
-        return adder == null ? 0 : adder.sum();
-    }
-
     public long total() {
         return counts.values().stream().mapToLong(LongAdder::sum).sum();
     }

@@ -1,0 +1,133 @@
+{
+  "overview": {
+    "kind": "dashboard",
+    "stats": [
+      {"key": "totalCalls", "label": "Total calls", "type": "integer", "action": "toggleTopCalledPanel"},
+      {"key": "totalErrors", "label": "Errors", "type": "integer", "tone": "err", "action": "toggleErrorsPanel"},
+      {"key": "dbTimeMs", "label": "DB time", "type": "duration", "tone": "db", "suffix": " ms"},
+      {"key": "cpuTimeMs", "label": "CPU time", "type": "duration", "tone": "cpu", "suffix": " ms"}
+    ],
+    "cards": [
+      {"key": "topCpuBottleneck", "label": "Top CPU bottleneck", "tone": "cpu"},
+      {"key": "topDatabaseBottleneck", "label": "Top IO bottleneck", "tone": "db"},
+      {"key": "topUnknownBottleneck", "label": "Top other bottleneck", "tone": "err"}
+    ],
+    "cardValueKey": "key",
+    "cardDetail": "{totalTimeMs} ms total · {callCount} calls",
+    "empty": "No data"
+  },
+  "endpoints": {
+    "kind": "table",
+    "rowKey": "key",
+    "empty": "No endpoints in this window.",
+    "chart": {"limit": 5, "labelKey": "key", "valueKey": "totalTimeMs", "title": "Slowest endpoints (ms)"},
+    "columns": [
+      {"key": "key", "label": "Endpoint", "render": "endpoint"},
+      {"key": "callCount", "label": "Calls", "align": "end"},
+      {"key": "errorCount", "label": "Errors", "align": "end"},
+      {"key": "avgTimeMs", "label": "Avg ms", "render": "duration", "align": "end"},
+      {"key": "p95TimeMs", "label": "p95 ms", "render": "duration", "align": "end"},
+      {"key": "p99TimeMs", "label": "p99 ms", "render": "duration", "align": "end"},
+      {"key": "maxTimeMs", "label": "Max ms", "render": "duration", "align": "end"},
+      {"key": "totalTimeMs", "label": "Total ms", "render": "duration", "align": "end"},
+      {"key": "dbTimeMs", "label": "DB ms", "render": "duration", "align": "end"},
+      {"key": "memoryKb", "label": "Mem KB", "align": "end"}
+    ]
+  },
+  "endpoint-methods": {
+    "kind": "table",
+    "titleTemplate": "Methods inside {label}",
+    "empty": "No methods recorded for this endpoint.",
+    "columns": [
+      {"key": "methodName", "label": "Method", "render": "method", "classKey": "className", "badgeKey": "n1Warning", "badgeValueKey": "callsPerRequest", "badgeText": "N+1", "severeFrom": "n1SevereCallsPerRequest"},
+      {"key": "layer", "label": "Layer", "render": "layer", "sort": false},
+      {"key": "callCount", "label": "Calls", "align": "end"},
+      {"key": "errorCount", "label": "Errors", "align": "end"},
+      {"key": "selfTimeMs", "label": "Self ms", "render": "duration", "align": "end"},
+      {"key": "p95TimeMs", "label": "p95 ms", "render": "duration", "align": "end"},
+      {"key": "p99TimeMs", "label": "p99 ms", "render": "duration", "align": "end"},
+      {"key": "totalTimeMs", "label": "Total ms", "render": "duration", "align": "end"},
+      {"key": "dbTimeMs", "label": "DB ms", "render": "duration", "align": "end"},
+      {"key": "memoryKb", "label": "Mem KB", "align": "end"},
+      {"key": "bottleneckType", "label": "Type", "render": "badge", "align": "end", "sort": false}
+    ]
+  },
+  "analyze": {
+    "kind": "report",
+    "empty": "No analysis yet.",
+    "fields": [
+      {"key": "where", "label": "Where", "role": "where"},
+      {"key": "problem", "label": "Problem", "role": "problem"},
+      {"key": "confidence", "label": "Confidence", "role": "confidence", "type": "percent"},
+      {"key": "summary", "label": "Summary", "role": "summary"},
+      {"key": "suggestion", "label": "How to fix", "role": "suggestion"},
+      {"key": "footer", "label": "Model", "role": "meta"}
+    ],
+    "findingFields": [
+      {"key": "where", "label": "Where", "role": "where"},
+      {"key": "problem", "label": "Problem", "role": "problem"},
+      {"key": "suggestion", "label": "How to fix", "role": "suggestion"},
+      {"key": "confidence", "label": "Confidence", "role": "confidence", "type": "percent"}
+    ],
+    "evidenceKey": "evidence"
+  },
+  "history": {
+    "kind": "series",
+    "timeKey": "time",
+    "title": "CPU vs. DB (ms/s)",
+    "empty": "No samples yet.",
+    "series": [
+      {"key": "cpuTimeMsPerSec", "label": "CPU ms/s", "tone": "cpu"},
+      {"key": "dbTimeMsPerSec", "label": "DB ms/s", "tone": "db"}
+    ]
+  },
+  "errors": {
+    "kind": "cards",
+    "empty": "No errors recorded in the current window.",
+    "fields": [
+      {"key": "endpoint", "label": "Endpoint", "role": "meta"},
+      {"key": "time", "label": "Time", "role": "time"},
+      {"key": "exceptionType", "label": "Exception", "role": "title"},
+      {"key": "method", "label": "Method", "role": "meta"},
+      {"key": "message", "label": "Message", "role": "message"},
+      {"key": "traceId", "label": "Trace", "role": "trace"}
+    ]
+  },
+  "top-called": {
+    "kind": "cards",
+    "empty": "No calls recorded yet.",
+    "fields": [
+      {"key": "callCount", "label": "Calls", "role": "meter"}
+    ]
+  },
+  "traces": {
+    "kind": "cards",
+    "empty": "Nothing was found.",
+    "flagKey": "error",
+    "fields": [
+      {"key": "traceId", "label": "Trace", "role": "trace"},
+      {"key": "time", "label": "Time", "role": "time"},
+      {"key": "endpoint", "label": "Endpoint", "role": "meta"},
+      {"key": "durationMs", "label": "Duration", "role": "meta", "suffix": " ms"}
+    ]
+  },
+  "call-graph": {
+    "kind": "table",
+    "empty": "No data yet.",
+    "columns": [
+      {"key": "edge", "label": "Edge (caller → callee)", "render": "edge", "sort": false},
+      {"key": "callCount", "label": "Calls", "align": "end", "sort": false},
+      {"key": "totalTimeMs", "label": "Total ms", "render": "duration", "align": "end", "sort": false}
+    ]
+  },
+  "background-roots": {
+    "kind": "table",
+    "empty": "Nothing recorded yet.",
+    "columns": [
+      {"key": "key", "label": "Key", "render": "endpoint", "sort": false},
+      {"key": "callCount", "label": "Calls", "align": "end", "sort": false},
+      {"key": "avgTimeMs", "label": "Avg ms", "align": "end", "sort": false},
+      {"key": "totalTimeMs", "label": "Total ms", "render": "duration", "align": "end", "sort": false}
+    ]
+  }
+}

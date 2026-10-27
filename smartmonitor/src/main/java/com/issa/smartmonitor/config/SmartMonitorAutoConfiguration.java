@@ -1,10 +1,12 @@
 package com.issa.smartmonitor.config;
 
-import com.issa.smartmonitor.ai.AiAnalysisService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.issa.smartmonitor.ai.DiagnosticAnalyzer;
 import com.issa.smartmonitor.aspect.MonitoringAspect;
 import com.issa.smartmonitor.aspect.MonitoringTaskDecoratorBeanPostProcessor;
 import com.issa.smartmonitor.core.*;
 import com.issa.smartmonitor.web.TraceIdFilter;
+import com.issa.smartmonitor.web.ViewCatalog;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -22,22 +24,31 @@ public class SmartMonitorAutoConfiguration {
 
     @Bean
     public MetricRegistry metricRegistry(SmartMonitorProperties properties) {
-        return new MetricRegistry(properties.getMaxEndpoints(), properties.getMaxMethodsPerEndpoint());
+        return new MetricRegistry(properties);
     }
 
     @Bean
-    public MonitoringAspect monitoringAspect(MetricRegistry registry) {
-        return new MonitoringAspect(registry);
+    public MonitoringAspect monitoringAspect(MetricRegistry registry, SmartMonitorProperties properties) {
+        return new MonitoringAspect(registry, properties);
     }
 
     @Bean
-    public MonitorController monitorController(MetricRegistry registry, ObjectProvider<AiAnalysisService> aiAnalysisServiceProvider, MetricHistory metricHistory) {
-        return new MonitorController(registry, aiAnalysisServiceProvider, metricHistory);
+    public ViewCatalog viewCatalog(SmartMonitorProperties properties, ObjectMapper objectMapper) {
+        return new ViewCatalog(properties, objectMapper);
     }
 
     @Bean
-    public MonitorPageController monitorPageController() {
-        return new MonitorPageController();
+    public MonitorController monitorController(MetricRegistry registry,
+                                               ObjectProvider<DiagnosticAnalyzer> diagnosticAnalyzer,
+                                               MetricHistory metricHistory,
+                                               SmartMonitorProperties properties,
+                                               ViewCatalog views) {
+        return new MonitorController(registry, diagnosticAnalyzer, metricHistory, properties, views);
+    }
+
+    @Bean
+    public MonitorPageController monitorPageController(SmartMonitorProperties properties, ObjectMapper objectMapper) {
+        return new MonitorPageController(properties, objectMapper);
     }
 
     @Bean
@@ -46,8 +57,8 @@ public class SmartMonitorAutoConfiguration {
     }
 
     @Bean
-    public MetricHistory metricHistory() {
-        return new MetricHistory(60);
+    public MetricHistory metricHistory(MetricRegistry registry, SmartMonitorProperties properties) {
+        return new MetricHistory(properties.getHistory().getMaxPoints(), registry.getTuning());
     }
 
     @Bean
@@ -61,10 +72,10 @@ public class SmartMonitorAutoConfiguration {
     }
 
     @Bean
-    public FilterRegistrationBean<TraceIdFilter> traceIdFilter() {
-        FilterRegistrationBean<TraceIdFilter> reg = new FilterRegistrationBean<>(new TraceIdFilter());
+    public FilterRegistrationBean<TraceIdFilter> traceIdFilter(SmartMonitorProperties properties) {
+        FilterRegistrationBean<TraceIdFilter> reg = new FilterRegistrationBean<>(new TraceIdFilter(properties));
         reg.setOrder(Ordered.HIGHEST_PRECEDENCE);
-        reg.addUrlPatterns("/*");
+        reg.addUrlPatterns(properties.getTrace().getUrlPattern());
         return reg;
     }
 }
