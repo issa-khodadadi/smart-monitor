@@ -124,7 +124,6 @@ smartmonitor:
     ai-failed: Analysis failed.
     analyzing: Analyzing…
     request-failed: Request failed.
-    unknown-provider: Unknown AI provider.
     no-data: No data
     no-samples: No requests in the current window yet. Generate some traffic, then analyze again.
     missing-endpoint: Unknown endpoint.
@@ -147,26 +146,8 @@ smartmonitor:
   ai:
     enabled: true
     provider: diagnostic
-    api-key:
-    model: gpt-4o-mini
     cache-seconds: 15
-    openai-base-url: https://api.openai.com/v1
-    anthropic-base-url: https://api.anthropic.com/v1
-    anthropic-version: "2023-06-01"
-    ollama-base-url: http://localhost:11434
-    local-model-path: ./smartmonitor-models
     model-resource: models/diagnostic/model.json
-    bundled-resource: models/tuned
-    temperature: 0.2
-    max-tokens: 400
-    anthropic-max-tokens: 1500
-    prompt-endpoints: 3
     max-findings: 3
     healthy-label: HEALTHY
     empty-confidence: 1
-    system-prompt: You are a performance monitoring assistant.
-    model-files:
-      - config.json
-      - tokenizer.json
-      - tokenizer_config.json
-      - model.safetensors
