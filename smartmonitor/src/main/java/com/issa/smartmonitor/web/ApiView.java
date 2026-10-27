@@ -1,6 +1,5 @@
 package com.issa.smartmonitor.web;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Getter;
 
 import java.util.Map;
@@ -18,11 +17,11 @@ public class ApiView {
     private final long generatedAt;
     private final String message;
     private final Map<String, Object> meta;
-    private final JsonNode schema;
+    private final Object schema;
     private final Object data;
 
     public ApiView(boolean ok, String code, String view, long generatedAt, String message,
-                   Map<String, Object> meta, JsonNode schema, Object data) {
+                   Map<String, Object> meta, Object schema, Object data) {
         this.ok = ok;
         this.code = code;
         this.view = view;
@@ -34,7 +33,7 @@ public class ApiView {
     }
 
     public static ApiView of(boolean ok, String code, String view, String message,
-                             Map<String, Object> meta, JsonNode schema, Object data) {
+                             Map<String, Object> meta, Object schema, Object data) {
         return new ApiView(ok, code, view, System.currentTimeMillis(), message, meta, schema, data);
     }
 }

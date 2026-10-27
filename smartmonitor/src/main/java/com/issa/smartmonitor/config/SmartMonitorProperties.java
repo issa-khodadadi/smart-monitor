@@ -188,7 +188,6 @@ public class SmartMonitorProperties {
         private String aiFailed;
         private String analyzing;
         private String requestFailed;
-        private String unknownProvider;
         private String noData;
         private String noSamples;
         private String missingEndpoint;
@@ -217,24 +216,10 @@ public class SmartMonitorProperties {
     public static class Ai {
         private boolean enabled;
         private String provider;
-        private String apiKey;
-        private String model;
         private int cacheSeconds;
-        private String openaiBaseUrl;
-        private String anthropicBaseUrl;
-        private String anthropicVersion;
-        private String ollamaBaseUrl;
-        private String localModelPath;
         private String modelResource;
-        private String bundledResource;
-        private double temperature;
-        private int maxTokens;
-        private int anthropicMaxTokens;
-        private int promptEndpoints;
         private int maxFindings;
         private String healthyLabel;
         private double emptyConfidence;
-        private String systemPrompt;
-        private List<String> modelFiles = new ArrayList<>();
     }
 }

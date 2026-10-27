@@ -69,7 +69,7 @@ smartmonitor:
   max-methods-per-endpoint: 100   # max methods tracked per endpoint (oldest evicted first)
   ai:
     enabled: true                 # local diagnostic model, no API key
-    provider: diagnostic          # or openai, anthropic, ollama, jlama
+    provider: diagnostic
 ```
 
 Every monitor API returns the same envelope (`ok`, `view`, `schema`, `data`). The dashboard renders `schema` instead of assuming a fixed payload. Thresholds, paths, and labels ship in `smartmonitor-defaults.yaml` and `smartmonitor/monitor-views.json`; application config overrides them.

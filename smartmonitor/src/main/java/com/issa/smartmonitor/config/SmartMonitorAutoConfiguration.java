@@ -1,7 +1,6 @@
 package com.issa.smartmonitor.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.issa.smartmonitor.ai.AiAnalysisService;
 import com.issa.smartmonitor.ai.DiagnosticAnalyzer;
 import com.issa.smartmonitor.aspect.MonitoringAspect;
 import com.issa.smartmonitor.aspect.MonitoringTaskDecoratorBeanPostProcessor;
@@ -41,12 +40,10 @@ public class SmartMonitorAutoConfiguration {
     @Bean
     public MonitorController monitorController(MetricRegistry registry,
                                                ObjectProvider<DiagnosticAnalyzer> diagnosticAnalyzer,
-                                               ObjectProvider<AiAnalysisService> aiAnalysisService,
                                                MetricHistory metricHistory,
                                                SmartMonitorProperties properties,
-                                               ViewCatalog views,
-                                               ObjectMapper objectMapper) {
-        return new MonitorController(registry, diagnosticAnalyzer, aiAnalysisService, metricHistory, properties, views, objectMapper);
+                                               ViewCatalog views) {
+        return new MonitorController(registry, diagnosticAnalyzer, metricHistory, properties, views);
     }
 
     @Bean

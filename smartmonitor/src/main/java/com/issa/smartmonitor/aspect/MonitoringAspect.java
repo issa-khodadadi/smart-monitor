@@ -83,15 +83,10 @@ public class MonitoringAspect {
             long memAfter = runtime.totalMemory() - runtime.freeMemory();
             long memoryDelta = Math.max(memAfter - memBefore, 0);
 
-            registry.record(className, methodName, layer, duration, isError, memoryDelta);
-
             long selfTime = duration - frame.childTimeNanos.get();
-            registry.addSelfTime(key, selfTime);
-
             registry.recordToEndpoint(endpointKey, className, methodName, layer, duration, selfTime, isError, memoryDelta, isRoot, isHttpOrigin);
 
             if (properties.getFormat().getRepositoryLayer().equals(layer)) {
-                if (parent != null) registry.addDbTimeToCaller(parent.key, duration);
                 registry.addDbTimeToEndpoint(endpointKey, duration);
             }
 
@@ -119,9 +114,6 @@ public class MonitoringAspect {
                 clazz.isAnnotationPresent(org.springframework.stereotype.Controller.class))
             return Layer.CONTROLLER.name();
 
-        if (clazz.isAnnotationPresent(org.springframework.stereotype.Service.class))
-            return Layer.SERVICE.name();
-
-        return Layer.OTHER.name();
+        return Layer.SERVICE.name();
     }
 }

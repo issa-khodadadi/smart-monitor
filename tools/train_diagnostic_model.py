@@ -30,6 +30,7 @@ LABELS = [
     "ERROR_BURST",
     "TAIL_LATENCY",
     "MEMORY_PRESSURE",
+    "EXTERNAL_WAIT",
     "FRAGMENTED_TRACE",
 ]
 
@@ -43,7 +44,8 @@ FEATURE_NAMES = [
     "error_rate",
     "log1p_calls_per_request",
     "self_ratio",
-    "log1p_memory_kb",
+    "log1p_memory_per_call",
+    "self_x_log_memory",
     "tail_ratio",
     "fragmented",
     "repository_share",
@@ -148,22 +150,44 @@ def sample(rng, label):
             errors=rng.uniform(0, 8),
         )
     elif label == "ERROR_BURST":
-        avg = rng.uniform(8, 900)
-        raw = dict(
-            calls=rng.uniform(30, 1000),
-            avg_ms=avg,
-            p95_ms=avg * rng.uniform(1.1, 3.0),
-            p99_ms=avg * rng.uniform(1.3, 4.5),
-            max_ms=avg * rng.uniform(1.8, 7.0),
-            db_ratio=rng.uniform(0.0, 0.7),
-            error_rate=rng.uniform(0.12, 0.95),
-            calls_per_request=rng.uniform(0.7, 10),
-            self_ratio=rng.uniform(0.15, 0.9),
-            memory_kb=rng.uniform(10, 20000),
-            fragmented=0.0,
-            repository_share=rng.uniform(0.0, 0.7),
-            errors=rng.uniform(15, 500),
-        )
+        # Heap delta is noisy, so failing calls often look "large" in memory.
+        # Error rate has to win even when only a handful of calls failed.
+        if rng.random() < 0.5:
+            calls = rng.uniform(1, 25)
+            avg = rng.uniform(400, 14000)
+            per_call = rng.uniform(2000, 120000)
+            raw = dict(
+                calls=calls,
+                avg_ms=avg,
+                p95_ms=avg * rng.uniform(1.0, 1.8),
+                p99_ms=avg * rng.uniform(1.0, 2.2),
+                max_ms=avg * rng.uniform(1.1, 2.5),
+                db_ratio=rng.uniform(0.0, 0.2),
+                error_rate=rng.uniform(0.5, 1.0),
+                calls_per_request=rng.uniform(0.8, 2.5),
+                self_ratio=rng.uniform(0.0005, 0.15),
+                memory_kb=per_call * calls,
+                fragmented=0.0,
+                repository_share=rng.uniform(0.0, 0.15),
+                errors=max(1.0, calls * rng.uniform(0.5, 1.0)),
+            )
+        else:
+            avg = rng.uniform(8, 2500)
+            raw = dict(
+                calls=rng.uniform(8, 800),
+                avg_ms=avg,
+                p95_ms=avg * rng.uniform(1.1, 3.0),
+                p99_ms=avg * rng.uniform(1.3, 4.5),
+                max_ms=avg * rng.uniform(1.8, 7.0),
+                db_ratio=rng.uniform(0.0, 0.7),
+                error_rate=rng.uniform(0.2, 1.0),
+                calls_per_request=rng.uniform(0.7, 8),
+                self_ratio=rng.uniform(0.05, 0.9),
+                memory_kb=rng.uniform(10, 80000),
+                fragmented=0.0,
+                repository_share=rng.uniform(0.0, 0.6),
+                errors=rng.uniform(1, 200),
+            )
     elif label == "TAIL_LATENCY":
         avg = rng.uniform(8, 160)
         raw = dict(
@@ -192,11 +216,29 @@ def sample(rng, label):
             db_ratio=rng.uniform(0.0, 0.4),
             error_rate=rng.uniform(0.0, 0.05),
             calls_per_request=rng.uniform(0.6, 5),
-            self_ratio=rng.uniform(0.3, 0.92),
-            memory_kb=rng.uniform(60000, 950000),
+            self_ratio=rng.uniform(0.72, 0.99),
+            memory_kb=rng.uniform(80000, 950000),
             fragmented=0.0,
             repository_share=rng.uniform(0.0, 0.35),
-            errors=rng.uniform(0, 8),
+            errors=rng.uniform(0, 4),
+        )
+    elif label == "EXTERNAL_WAIT":
+        calls = rng.uniform(1, 80)
+        avg = rng.uniform(500, 14000)
+        raw = dict(
+            calls=calls,
+            avg_ms=avg,
+            p95_ms=avg * rng.uniform(1.0, 2.0),
+            p99_ms=avg * rng.uniform(1.1, 2.6),
+            max_ms=avg * rng.uniform(1.2, 3.5),
+            db_ratio=rng.uniform(0.0, 0.15),
+            error_rate=rng.uniform(0.0, 0.08),
+            calls_per_request=rng.uniform(0.7, 2.5),
+            self_ratio=rng.uniform(0.0005, 0.1),
+            memory_kb=rng.uniform(1000, 100000) * calls / max(calls, 1),
+            fragmented=0.0,
+            repository_share=rng.uniform(0.0, 0.12),
+            errors=rng.uniform(0, 3),
         )
     else:
         avg = rng.uniform(30, 400)
@@ -217,7 +259,7 @@ def sample(rng, label):
         )
 
     raw["db_ratio"] = clamp(raw["db_ratio"], 0.0, 0.999)
-    raw["error_rate"] = clamp(raw["error_rate"], 0.0, 0.99)
+    raw["error_rate"] = clamp(raw["error_rate"], 0.0, 1.0)
     raw["self_ratio"] = clamp(raw["self_ratio"], 0.0, 0.999)
     raw["repository_share"] = clamp(raw["repository_share"], 0.0, 0.999)
     raw["p95_ms"] = max(raw["p95_ms"], raw["avg_ms"])
@@ -237,7 +279,8 @@ def featurize(raw):
         raw["error_rate"],
         math.log1p(raw["calls_per_request"]),
         raw["self_ratio"],
-        math.log1p(raw["memory_kb"]),
+        math.log1p(raw["memory_kb"] / max(raw["calls"], 1.0)),
+        raw["self_ratio"] * math.log1p(raw["memory_kb"] / max(raw["calls"], 1.0)),
         raw["p99_ms"] / max(raw["avg_ms"], TAIL_AVG_FLOOR),
         raw["fragmented"],
         raw["repository_share"],
@@ -378,7 +421,7 @@ REPORTS = {
         "weight": 1.0,
         "locate": "maxErrors",
         "summary": "{where} is failing on {errorPercent}% of calls in this window.",
-        "suggestion": "Fix the exception at {where} before tuning speed. Guard the failing input, and do not retry a deterministic error.",
+        "suggestion": "{where} fails on {errorPercent}% of calls. Latest exception: {exceptionType} - {exceptionMessage}. The method itself is only {selfMs} ms of the {avgMs} ms average, so the rest is an unmonitored call. Fix that exception, then open the remote client or plain Java call inside {where}.",
         "evidence": ["errorPercent", "avgMs"],
     },
     "TAIL_LATENCY": {
@@ -396,8 +439,17 @@ REPORTS = {
         "weight": 0.8,
         "locate": "maxMemory",
         "summary": "{where} is allocating about {memoryKb} KB. That allocation, not the database, dominates the endpoint.",
-        "suggestion": "Stop buffering the whole result in {where}. Stream it, page it, or cap the payload so the request does not hold a large graph on the heap.",
+        "suggestion": "{where} is actually allocating this on its own path ({selfPercent}% of the time, {memoryKb} KB). Stream or page that result instead of holding the whole graph on the heap.",
         "evidence": ["memoryKb", "avgMs", "selfPercent"],
+    },
+    "EXTERNAL_WAIT": {
+        "problem": "Wait outside monitored code",
+        "severity": "HIGH",
+        "weight": 0.9,
+        "locate": "endpoint",
+        "summary": "{where} averages {avgMs} ms, but only {selfMs} ms of that is inside the method and the database is {dbPercent}%.",
+        "suggestion": "The time is not in {where} and not in a @Repository. It is waiting on something SmartMonitor does not wrap: an HTTP client, a lock, or a class without @Service. Put a breakpoint on that call.",
+        "evidence": ["avgMs", "selfPercent", "dbPercent"],
     },
     "FRAGMENTED_TRACE": {
         "problem": "Split trace",
@@ -418,6 +470,7 @@ EVIDENCE = {
     "errorPercent": "{errorPercent}% of calls fail",
     "memoryKb": "{memoryKb} KB allocated",
     "selfPercent": "own time is {selfPercent}% of the endpoint",
+    "selfMs": "own time {selfMs} ms",
 }
 
 
@@ -475,7 +528,7 @@ def main():
 
     model = {
         "id": "smartmonitor-diagnostic",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "trainedOn": "synthetic-bottleneck-v1",
         "trainer": "tools/train_diagnostic_model.py",
         "seed": SEED,
@@ -490,7 +543,7 @@ def main():
         "bias": [round(v, 8) for v in bias],
         "reports": REPORTS,
         "evidence": EVIDENCE,
-        "footer": "{modelId} {modelVersion} · {inferenceMs} ms · holdout accuracy {holdoutAccuracy}",
+        "footer": "{modelId} {modelVersion} | {inferenceMs} ms | holdout accuracy {holdoutAccuracy}",
         "fixtures": fixtures,
     }
 

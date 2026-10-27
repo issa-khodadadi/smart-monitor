@@ -11,7 +11,6 @@ import java.util.stream.Collectors;
 
 public class MetricRegistry {
 
-    private final ConcurrentHashMap<String, MethodStats> stats = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, EndpointStats> endpoints = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LongAdder> edgeTimeNanos = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, LongAdder> edgeCallCount = new ConcurrentHashMap<>();
@@ -37,12 +36,6 @@ public class MetricRegistry {
         this.maxEndpoints = properties.getMaxEndpoints();
         this.maxMethodsPerEndpoint = properties.getMaxMethodsPerEndpoint();
         this.tuning = MonitorTuning.from(properties);
-    }
-
-    public void record(String className, String methodName, String layer, long durationNanos, boolean isError, long memoryBytes) {
-        String key = tuning.methodKey(className, methodName);
-        stats.computeIfAbsent(key, k -> new MethodStats(className, methodName, layer, tuning))
-                .record(durationNanos, isError, memoryBytes);
     }
 
     public void recordToEndpoint(String endpointKey, String className, String methodName, String layer,
@@ -74,19 +67,9 @@ public class MetricRegistry {
         ms.addSelfTime(selfTimeNanos);
     }
 
-    public void addDbTimeToCaller(String key, long durationNanos) {
-        MethodStats s = stats.get(key);
-        if (s != null) s.addDbTime(durationNanos);
-    }
-
     public void addDbTimeToEndpoint(String endpointKey, long durationNanos) {
         EndpointStats ep = endpoints.get(endpointKey);
         if (ep != null) ep.addDbTime(durationNanos);
-    }
-
-    public void addSelfTime(String key, long durationNanos) {
-        MethodStats s = stats.get(key);
-        if (s != null) s.addSelfTime(durationNanos);
     }
 
     public void recordEdge(String parentKey, String childKey, long durationNanos) {
@@ -109,7 +92,6 @@ public class MetricRegistry {
                 .collect(Collectors.toList());
     }
 
-    public Collection<MethodStats> getAll() { return stats.values(); }
     public Collection<EndpointStats> getEndpoints() { return endpoints.values(); }
     public EndpointStats getEndpoint(String key) { return endpoints.get(key); }
     public Collection<EndpointStats> getBackgroundRoots() { return backgroundRoots.values(); }

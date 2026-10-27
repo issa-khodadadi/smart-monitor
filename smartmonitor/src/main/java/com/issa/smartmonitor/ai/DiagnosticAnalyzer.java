@@ -4,6 +4,7 @@ import com.issa.smartmonitor.config.SmartMonitorProperties;
 import com.issa.smartmonitor.core.MetricRegistry;
 import com.issa.smartmonitor.core.MonitorTuning;
 import com.issa.smartmonitor.model.EndpointStats;
+import com.issa.smartmonitor.model.ErrorEntry;
 import com.issa.smartmonitor.model.MethodStats;
 import com.issa.smartmonitor.model.RequestTrace;
 
@@ -150,7 +151,29 @@ public class DiagnosticAnalyzer {
         slots.put("errorPercent", number(observation.errorRate() * percent, tuning));
         slots.put("memoryKb", number(observation.memoryKb(), tuning));
         slots.put("selfPercent", number(observation.selfRatio() * percent, tuning));
+        slots.put("selfMs", number(observation.selfRatio() * observation.avgMs(), tuning));
+        ErrorEntry error = latestError(observation.endpointKey());
+        String empty = properties.getFormat().getEmptyLabel();
+        slots.put("exceptionType", error == null || error.getExceptionType() == null ? empty : error.getExceptionType());
+        slots.put("exceptionMessage", error == null ? empty : brief(error.getMessage(), empty));
         return slots;
+    }
+
+    private static String brief(String message, String empty) {
+        if (message == null || message.isBlank()) {
+            return empty;
+        }
+        String oneLine = message.replace('\n', ' ').replace('\r', ' ').trim();
+        return oneLine.length() <= 160 ? oneLine : oneLine.substring(0, 157) + "...";
+    }
+
+    private ErrorEntry latestError(String endpointKey) {
+        for (ErrorEntry error : registry.getRecentErrors()) {
+            if (endpointKey.equals(error.getEndpointKey())) {
+                return error;
+            }
+        }
+        return null;
     }
 
     private Map<String, String> footerSlots(double inferenceMs) {

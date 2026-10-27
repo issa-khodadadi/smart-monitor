@@ -29,4 +29,27 @@ class DiagnosticModelTest {
             }
         }
     }
+
+    @Test
+    void failingSlowControllerIsNotCalledMemoryPressure() throws Exception {
+        try (InputStream in = DiagnosticModelTest.class.getResourceAsStream("/models/diagnostic/model.json")) {
+            DiagnosticModel model = DiagnosticModel.load(in, new ObjectMapper());
+            Map<String, Double> raw = new HashMap<>();
+            raw.put("calls", 2.0);
+            raw.put("avg_ms", 7694.0);
+            raw.put("p95_ms", 9620.0);
+            raw.put("p99_ms", 9620.0);
+            raw.put("max_ms", 9620.0);
+            raw.put("db_ratio", 0.0);
+            raw.put("error_rate", 1.0);
+            raw.put("calls_per_request", 1.0);
+            raw.put("self_ratio", 0.0008);
+            raw.put("memory_kb", 85372.0);
+            raw.put("fragmented", 0.0);
+            raw.put("repository_share", 0.0);
+            raw.put("errors", 2.0);
+            DiagnosticModel.Prediction prediction = model.predict(raw);
+            assertEquals("ERROR_BURST", prediction.label());
+        }
+    }
 }

@@ -17,10 +17,8 @@ public class MethodStats {
     private final LongAdder callCount = new LongAdder();
     private final LongAdder errorCount = new LongAdder();
     private final AtomicLong totalTimeNanos = new AtomicLong(0);
-    private final AtomicLong maxTimeNanos = new AtomicLong(0);
     private final AtomicLong dbTimeNanos = new AtomicLong(0);
     private final AtomicLong totalMemoryBytes = new AtomicLong(0);
-    private final AtomicLong maxMemoryBytes = new AtomicLong(0);
     private final AtomicLong selfTimeNanos = new AtomicLong(0);
     private final AtomicLong lastAccessMillis = new AtomicLong(System.currentTimeMillis());
     private final LatencyReservoir latencyReservoir;
@@ -37,11 +35,9 @@ public class MethodStats {
         callCount.increment();
         if (isError) errorCount.increment();
         totalTimeNanos.addAndGet(durationNanos);
-        maxTimeNanos.updateAndGet(current -> Math.max(current, durationNanos));
         latencyReservoir.record(durationNanos);
         if (memoryBytes > 0) {
             totalMemoryBytes.addAndGet(memoryBytes);
-            maxMemoryBytes.updateAndGet(current -> Math.max(current, memoryBytes));
         }
         lastAccessMillis.set(System.currentTimeMillis());
     }
@@ -49,17 +45,9 @@ public class MethodStats {
     public void addDbTime(long durationNanos) { dbTimeNanos.addAndGet(durationNanos); }
     public void addSelfTime(long durationNanos) { selfTimeNanos.addAndGet(Math.max(durationNanos, 0)); }
 
-    public double avgTimeMs() {
-        long calls = callCount.sum();
-        if (calls == 0) return 0;
-        return tuning.ms(totalTimeNanos.get()) / calls;
-    }
-
-    public double maxTimeMs() { return tuning.ms(maxTimeNanos.get()); }
     public double totalTimeMs() { return tuning.ms(totalTimeNanos.get()); }
     public double dbTimeMs() { return tuning.ms(dbTimeNanos.get()); }
     public double totalMemoryKb() { return tuning.kb(totalMemoryBytes.get()); }
-    public double maxMemoryKb() { return tuning.kb(maxMemoryBytes.get()); }
     public double selfTimeMs() { return tuning.ms(selfTimeNanos.get()); }
     public long lastAccessMillis() { return lastAccessMillis.get(); }
 

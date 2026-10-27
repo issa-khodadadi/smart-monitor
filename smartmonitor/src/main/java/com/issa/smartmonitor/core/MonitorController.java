@@ -1,9 +1,5 @@
 package com.issa.smartmonitor.core;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.issa.smartmonitor.ai.AiAnalysisResult;
-import com.issa.smartmonitor.ai.AiAnalysisService;
 import com.issa.smartmonitor.ai.DiagnosticAnalyzer;
 import com.issa.smartmonitor.config.SmartMonitorProperties;
 import com.issa.smartmonitor.enums.BottleneckType;
@@ -30,26 +26,20 @@ public class MonitorController {
 
     private final MetricRegistry registry;
     private final DiagnosticAnalyzer diagnosticAnalyzer;
-    private final AiAnalysisService aiAnalysisService;
     private final MetricHistory history;
     private final SmartMonitorProperties properties;
     private final ViewCatalog views;
-    private final ObjectMapper mapper;
 
     public MonitorController(MetricRegistry registry,
                              ObjectProvider<DiagnosticAnalyzer> diagnosticAnalyzer,
-                             ObjectProvider<AiAnalysisService> aiAnalysisService,
                              MetricHistory history,
                              SmartMonitorProperties properties,
-                             ViewCatalog views,
-                             ObjectMapper mapper) {
+                             ViewCatalog views) {
         this.registry = registry;
         this.diagnosticAnalyzer = diagnosticAnalyzer.getIfAvailable();
-        this.aiAnalysisService = aiAnalysisService.getIfAvailable();
         this.history = history;
         this.properties = properties;
         this.views = views;
-        this.mapper = mapper;
     }
 
     @GetMapping(value = "${smartmonitor.paths.overview}", produces = MediaType.APPLICATION_JSON_VALUE)
@@ -138,10 +128,7 @@ public class MonitorController {
         }
         boolean refresh = Boolean.parseBoolean(param(request, properties.getParams().getRefresh(), Boolean.FALSE.toString()));
         try {
-            Map<String, Object> data = diagnosticAnalyzer != null
-                    ? diagnosticAnalyzer.analyze(refresh)
-                    : legacyAnalysis(refresh);
-            return ok(view, data, Map.of());
+            return ok(view, diagnosticAnalyzer.analyze(refresh), Map.of());
         } catch (Exception ex) {
             String message = ex.getMessage() == null ? properties.getMessages().getAiFailed() : ex.getMessage();
             return status(properties.getHttp().getError(), fail(view, properties.getCodes().getFailed(), message));
@@ -228,44 +215,7 @@ public class MonitorController {
     }
 
     private boolean analyzeEnabled() {
-        return (diagnosticAnalyzer != null && diagnosticAnalyzer.isEnabled())
-                || (aiAnalysisService != null && aiAnalysisService.isEnabled());
-    }
-
-    private Map<String, Object> legacyAnalysis(boolean refresh) {
-        AiAnalysisResult result = aiAnalysisService.analyze(refresh);
-        Map<String, Object> data = new LinkedHashMap<>();
-        data.put("summary", result.getRawJson());
-        data.put("where", properties.getFormat().getEmptyLabel());
-        data.put("problem", properties.getFormat().getEmptyLabel());
-        data.put("suggestion", properties.getFormat().getEmptyLabel());
-        data.put("confidence", 0);
-        data.put("footer", properties.getAi().getProvider());
-        data.put("evidence", List.of());
-        data.put("findings", findingsFromLegacy(result.getRawJson()));
-        return data;
-    }
-
-    private List<Map<String, Object>> findingsFromLegacy(String rawJson) {
-        try {
-            JsonNode node = mapper.readTree(rawJson);
-            if (!node.isArray()) {
-                return List.of();
-            }
-            List<Map<String, Object>> findings = new java.util.ArrayList<>();
-            for (JsonNode item : node) {
-                Map<String, Object> finding = new LinkedHashMap<>();
-                finding.put("where", item.path("endpoint").asText(properties.getFormat().getEmptyLabel()));
-                finding.put("problem", item.path("issue").asText(item.path("cause").asText()));
-                finding.put("suggestion", item.path("suggestion").asText());
-                finding.put("confidence", 0);
-                finding.put("severity", item.path("severity").asText());
-                findings.add(finding);
-            }
-            return findings;
-        } catch (Exception ignored) {
-            return List.of();
-        }
+        return diagnosticAnalyzer != null && diagnosticAnalyzer.isEnabled();
     }
 
     private Map<String, Object> topBottleneck(String type, java.util.Set<String> fragmented) {

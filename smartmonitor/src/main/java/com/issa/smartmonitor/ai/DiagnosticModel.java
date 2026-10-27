@@ -158,7 +158,8 @@ public final class DiagnosticModel {
             case "error_rate" -> value(raw, "error_rate");
             case "log1p_calls_per_request" -> Math.log1p(value(raw, "calls_per_request"));
             case "self_ratio" -> value(raw, "self_ratio");
-            case "log1p_memory_kb" -> Math.log1p(value(raw, "memory_kb"));
+            case "log1p_memory_per_call" -> Math.log1p(memoryPerCall(raw));
+            case "self_x_log_memory" -> value(raw, "self_ratio") * Math.log1p(memoryPerCall(raw));
             case "tail_ratio" -> value(raw, "p99_ms") / Math.max(value(raw, "avg_ms"), tailAvgFloor);
             case "fragmented" -> value(raw, "fragmented");
             case "repository_share" -> value(raw, "repository_share");
@@ -168,6 +169,10 @@ public final class DiagnosticModel {
             case "error_x_log_calls" -> value(raw, "error_rate") * Math.log1p(value(raw, "calls"));
             default -> throw new AiAnalysisException("Unknown diagnostic feature: " + feature, null);
         };
+    }
+
+    private static double memoryPerCall(Map<String, Double> raw) {
+        return value(raw, "memory_kb") / Math.max(value(raw, "calls"), 1);
     }
 
     private static double value(Map<String, Double> raw, String key) {
