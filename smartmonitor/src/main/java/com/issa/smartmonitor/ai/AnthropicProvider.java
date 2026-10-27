@@ -11,24 +11,29 @@ public class AnthropicProvider implements AiAnalysisProvider {
     private final RestClient restClient;
     private final String apiKey;
     private final String model;
+    private final String version;
+    private final int maxTokens;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public AnthropicProvider(String apiKey, String model) {
-        this.apiKey = apiKey;
-        this.model = model;
+    public AnthropicProvider(com.issa.smartmonitor.config.SmartMonitorProperties properties) {
+        com.issa.smartmonitor.config.SmartMonitorProperties.Ai ai = properties.getAi();
+        this.apiKey = ai.getApiKey();
+        this.model = ai.getModel();
+        this.version = ai.getAnthropicVersion();
+        this.maxTokens = ai.getAnthropicMaxTokens();
         this.restClient = RestClient.builder()
-                .baseUrl("https://api.anthropic.com/v1")
+                .baseUrl(ai.getAnthropicBaseUrl())
                 .build();
     }
 
     @Override
     public String analyze(String prompt) throws Exception {
-        String requestBody = mapper.writeValueAsString(new MessageRequest(model, prompt));
+        String requestBody = mapper.writeValueAsString(new MessageRequest(model, maxTokens, java.util.List.of(new Message("user", prompt))));
 
         String response = restClient.post()
                 .uri("/messages")
                 .header("x-api-key", apiKey)
-                .header("anthropic-version", "2023-06-01")
+                .header("anthropic-version", version)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(requestBody)
                 .retrieve()
@@ -43,9 +48,6 @@ public class AnthropicProvider implements AiAnalysisProvider {
     }
 
     private record MessageRequest(String model, int max_tokens, java.util.List<Message> messages) {
-        MessageRequest(String model, String prompt) {
-            this(model, 1500, java.util.List.of(new Message("user", prompt)));
-        }
     }
 
     private record Message(String role, String content) {}

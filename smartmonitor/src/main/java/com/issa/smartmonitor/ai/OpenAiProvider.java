@@ -12,19 +12,22 @@ public class OpenAiProvider implements AiAnalysisProvider {
     private final RestClient restClient;
     private final String apiKey;
     private final String model;
+    private final double temperature;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public OpenAiProvider(String apiKey, String model) {
-        this.apiKey = apiKey;
-        this.model = model;
+    public OpenAiProvider(com.issa.smartmonitor.config.SmartMonitorProperties properties) {
+        com.issa.smartmonitor.config.SmartMonitorProperties.Ai ai = properties.getAi();
+        this.apiKey = ai.getApiKey();
+        this.model = ai.getModel();
+        this.temperature = ai.getTemperature();
         this.restClient = RestClient.builder()
-                .baseUrl("https://api.openai.com/v1")
+                .baseUrl(ai.getOpenaiBaseUrl())
                 .build();
     }
 
     @Override
     public String analyze(String prompt) throws Exception {
-        String requestBody = mapper.writeValueAsString(new ChatRequest(model, prompt));
+        String requestBody = mapper.writeValueAsString(new ChatRequest(model, prompt, temperature));
 
         String response = restClient.post()
                 .uri("/chat/completions")
@@ -43,8 +46,8 @@ public class OpenAiProvider implements AiAnalysisProvider {
     }
 
     private record ChatRequest(String model, java.util.List<Message> messages, double temperature) {
-        ChatRequest(String model, String prompt) {
-            this(model, java.util.List.of(new Message("user", prompt)), 0.2);
+        ChatRequest(String model, String prompt, double temperature) {
+            this(model, java.util.List.of(new Message("user", prompt)), temperature);
         }
     }
 

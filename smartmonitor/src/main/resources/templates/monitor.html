@@ -330,7 +330,7 @@
         <div class="modal-body">
             <table>
                 <thead>
-                <tr>
+                <tr id="callGraphHeadRow">
                     <th>Edge (caller → callee)</th><th class="num">Calls</th><th class="num">Total ms</th>
                 </tr>
                 </thead>
@@ -349,7 +349,7 @@
         <div class="modal-body">
             <table>
                 <thead>
-                <tr>
+                <tr id="backgroundHeadRow">
                     <th>Key</th><th class="num">Calls</th><th class="num">Avg ms</th><th class="num">Total ms</th>
                 </tr>
                 </thead>
@@ -360,12 +360,26 @@
 </div>
 
 <script>
-    const BASE = window.SMARTMONITOR_BASE_PATH || '';
+    const CFG = window.SMARTMONITOR_CONFIG || {};
+    const BASE = CFG.basePath || '';
+    const PATHS = CFG.paths || {};
+    const PARAMS = CFG.params || {};
+    const UI = CFG.ui || {};
+    const FORMAT = CFG.format || {};
+    const SORT = CFG.sort || {};
+    const THRESHOLDS = CFG.thresholds || {};
+    const MESSAGES = CFG.messages || {};
 
-    const COLOR = { cpu: '#3fb1ce', db: '#e0a640', err: '#e0596a', ok: '#4fc98a', muted: '#6b7280', grid: '#1f2530' };
-
-    const TIME_HOT_MS = 5000;
-    const TIME_WARN_MS = 500;
+    const style = getComputedStyle(document.documentElement);
+    const COLOR = {
+      cpu: style.getPropertyValue('--cpu').trim(),
+      db: style.getPropertyValue('--db').trim(),
+      err: style.getPropertyValue('--err').trim(),
+      ok: style.getPropertyValue('--ok').trim(),
+      muted: style.getPropertyValue('--text-muted').trim(),
+      grid: style.getPropertyValue('--border').trim(),
+      text: style.getPropertyValue('--text').trim()
+    };
 
     let rankChart, heartbeatChart;
     let selectedEndpoint = null;
@@ -374,98 +388,210 @@
     let tracesVisible = false;
     let callGraphVisible = false;
     let backgroundVisible = false;
+    const headersReady = {};
 
     let endpointSearch = '';
-    let endpointLimit = 10;
-    let endpointSort = { by: 'totalTimeMs', dir: 'desc' };
-    let methodSort = { by: 'selfTimeMs', dir: 'desc' };
+    let endpointLimit = (UI.pageSizeOptions && UI.pageSizeOptions[0]) || 0;
+    let endpointSort = { by: SORT.endpointsBy, dir: SORT.endpointsDir };
+    let methodSort = { by: SORT.methodsBy, dir: SORT.methodsDir };
     let autoRefreshTimer = null;
     let autoRefreshPaused = false;
     let searchDebounceTimer = null;
 
+    const aiWrap = document.getElementById('aiSectionWrap');
+    if (aiWrap) aiWrap.style.display = CFG.ai && CFG.ai.enabled ? 'block' : 'none';
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    function initPageSize() {
+      const select = document.getElementById('endpointLimitSelect');
+      const options = UI.pageSizeOptions || [];
+      if (!select || !options.length) return;
+      select.innerHTML = options.map(n => `<option value="${n}">${escapeHtml(UI.pageSizePrefix || '')}${n}</option>`).join('');
+      endpointLimit = options[0];
+      select.value = String(endpointLimit);
+    }
+
+    function apiUrl(path) { return BASE + path; }
+
+    function withParams(path, entries) {
+      const target = new URL(apiUrl(path), window.location.origin);
+      Object.entries(entries).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') target.searchParams.set(key, value);
+      });
+      return target;
+    }
+
+    async function loadView(url, options) {
+      const res = await fetch(url, options);
+      return res.json();
+    }
+
     function onEndpointSearchInput(value) {
-        clearTimeout(searchDebounceTimer);
-        searchDebounceTimer = setTimeout(() => {
-            endpointSearch = value;
-            refresh();
-        }, 300);
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(() => {
+        endpointSearch = value;
+        refresh();
+      }, UI.searchDebounceMillis);
     }
 
     function onEndpointLimitChange(value) {
-        endpointLimit = parseInt(value, 10);
-        refresh();
+      endpointLimit = parseInt(value, 10);
+      refresh();
     }
 
     function applySort(current, column) {
-        if (current.by === column) {
-            current.dir = current.dir === 'asc' ? 'desc' : 'asc';
-        } else {
-            current.by = column;
-            current.dir = 'desc';
-        }
+      if (current.by === column) {
+        current.dir = current.dir === SORT.ascending ? SORT.descending : SORT.ascending;
+      } else {
+        current.by = column;
+        current.dir = SORT.descending;
+      }
     }
 
     function updateSortHeaders(rowId, sortState) {
-        document.querySelectorAll('#' + rowId + ' th[data-sort]').forEach(th => {
-            th.classList.remove('sorted-asc', 'sorted-desc');
-            if (th.dataset.sort === sortState.by) {
-                th.classList.add(sortState.dir === 'asc' ? 'sorted-asc' : 'sorted-desc');
-            }
-        });
+      document.querySelectorAll('#' + rowId + ' th[data-sort]').forEach(th => {
+        th.classList.remove('sorted-asc', 'sorted-desc');
+        if (th.dataset.sort === sortState.by) {
+          th.classList.add(sortState.dir === SORT.ascending ? 'sorted-asc' : 'sorted-desc');
+        }
+      });
     }
 
     function toggleAutoRefresh() {
-        autoRefreshPaused = !autoRefreshPaused;
-        const btn = document.getElementById('pauseBtn');
-        if (autoRefreshPaused) {
-            clearInterval(autoRefreshTimer);
-            btn.textContent = '▶ Resume';
-            btn.style.borderColor = 'var(--warn)';
-        } else {
-            btn.textContent = '⏸ Pause';
-            btn.style.borderColor = '';
-            autoRefreshTimer = setInterval(refresh, 3000);
-            refresh();
-        }
+      autoRefreshPaused = !autoRefreshPaused;
+      const btn = document.getElementById('pauseBtn');
+      if (autoRefreshPaused) {
+        clearInterval(autoRefreshTimer);
+        btn.textContent = '▶ Resume';
+        btn.style.borderColor = 'var(--warn)';
+      } else {
+        btn.textContent = '⏸ Pause';
+        btn.style.borderColor = '';
+        autoRefreshTimer = setInterval(refresh, UI.refreshMillis);
+        refresh();
+      }
     }
 
-    function shortLabel(key) { return key ? key.replace('#', '.') : '-'; }
+    function shortLabel(key) {
+      if (!key) return FORMAT.emptyLabel || '';
+      return escapeHtml(String(key).split(FORMAT.keySeparator).join(FORMAT.displaySeparator));
+    }
 
     function timeClass(ms) {
-      if (ms >= TIME_HOT_MS) return 't-hot';
-      if (ms >= TIME_WARN_MS) return 't-warn';
+      if (ms >= UI.hotTimeMs) return 't-hot';
+      if (ms >= UI.warnTimeMs) return 't-warn';
       return '';
     }
 
     function layerPill(layer) {
-      const cls = { SERVICE: 'pill-service', REPOSITORY: 'pill-repository', CONTROLLER: 'pill-controller' }[layer] || 'pill-other';
-      return `<span class="pill ${cls}"><span class="dot"></span>${layer}</span>`;
+      const name = String(layer || '').toLowerCase();
+      return `<span class="pill pill-${escapeHtml(name)}"><span class="dot"></span>${escapeHtml(layer)}</span>`;
+    }
+
+    function formatValue(value, field) {
+      if (value == null || value === '') return escapeHtml(FORMAT.emptyLabel || '');
+      if (field && field.type === 'percent') return Math.round(Number(value) * 100) + '%';
+      if (field && field.type === 'time') return escapeHtml(new Date(value).toLocaleString());
+      return escapeHtml(value);
+    }
+
+    function renderCell(row, col) {
+      const value = row[col.key];
+      if (col.render === 'endpoint') return shortLabel(value);
+      if (col.render === 'duration') return `<span class="${timeClass(value)}">${escapeHtml(value)}</span>`;
+      if (col.render === 'layer') return layerPill(value);
+      if (col.render === 'badge') return `<span class="type-tag ${escapeHtml(String(value || '').toLowerCase())}">${escapeHtml(value)}</span>`;
+      if (col.render === 'edge') {
+        const parts = String(value || '').split(FORMAT.edgeSeparator);
+        return `${shortLabel(parts[0])} <span style="color:var(--text-dim);">→</span> ${shortLabel(parts[1] || '')}`;
+      }
+      if (col.render === 'method') {
+        const severeAt = THRESHOLDS[col.severeFrom];
+        const ratio = row[col.badgeValueKey];
+        const badge = row[col.badgeKey]
+          ? `<span class="n1-badge ${ratio >= severeAt ? 'severe' : ''}">${escapeHtml(col.badgeText)} · ${escapeHtml(ratio)}×</span>`
+          : '';
+        return `<span class="method">${escapeHtml(row[col.classKey])}.</span>${escapeHtml(value)}${badge}`;
+      }
+      return escapeHtml(value ?? '');
+    }
+
+    function ensureHeaders(rowId, columns) {
+      if (!rowId || headersReady[rowId] || !columns) return;
+      const row = document.getElementById(rowId);
+      if (!row) return;
+      row.innerHTML = columns.map(col => {
+        const cls = col.align === 'end' ? ' class="num"' : '';
+        const sort = col.sort === false ? '' : ` data-sort="${col.key}"`;
+        return `<th${cls}${sort}>${escapeHtml(col.label)}</th>`;
+      }).join('');
+      headersReady[rowId] = true;
+    }
+
+    function renderTable(bodyId, headId, view, onRow) {
+      const columns = (view.schema && view.schema.columns) || [];
+      ensureHeaders(headId, columns);
+      const tbody = document.getElementById(bodyId);
+      const rows = view.data || [];
+      tbody.innerHTML = '';
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="${Math.max(columns.length, 1)}" class="empty-note">${escapeHtml((view.schema && view.schema.empty) || MESSAGES.noData)}</td></tr>`;
+        return;
+      }
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        if (onRow) onRow(tr, row);
+        tr.innerHTML = columns.map(col => {
+          const cls = col.align === 'end' ? ' class="num"' : ' class="name-cell"';
+          return `<td${cls}>${renderCell(row, col)}</td>`;
+        }).join('');
+        tbody.appendChild(tr);
+      });
     }
 
     function updateClock() {
       document.getElementById('liveClock').textContent = new Date().toLocaleTimeString();
     }
-    setInterval(updateClock, 1000);
+    setInterval(updateClock, UI.clockMillis);
     updateClock();
 
-    function bottleneckCard(label, b, colorClass) {
-      if (!b) {
-        return `<div class="bn-card"><div class="bn-label">${label}</div><div class="bn-empty">No data</div></div>`;
-      }
-      return `
-        <div class="bn-card">
-          <div class="bn-label">${label}</div>
-          <div class="bn-name ${colorClass}">${shortLabel(b.key)}</div>
-          <div class="bn-time">${b.totalTimeMs} ms total · ${b.callCount} calls</div>
-        </div>
-      `;
+    function fillTemplate(template, row) {
+      return String(template || '').replace(/\{(\w+)\}/g, (_, key) => row[key] ?? '');
     }
 
-    function renderOrUpdateBar(labels, values) {
+    function bottleneckCard(label, row, colorClass, detailTemplate) {
+      if (!row) {
+        return `<div class="bn-card"><div class="bn-label">${escapeHtml(label)}</div><div class="bn-empty">${escapeHtml(MESSAGES.noData)}</div></div>`;
+      }
+      return `<div class="bn-card"><div class="bn-label">${escapeHtml(label)}</div><div class="bn-name ${escapeHtml(colorClass)}">${shortLabel(row.key)}</div><div class="bn-time">${escapeHtml(fillTemplate(detailTemplate, row))}</div></div>`;
+    }
+
+    function renderStats(view) {
+      const stats = (view.schema && view.schema.stats) || [];
+      document.getElementById('panels').innerHTML = stats.map(stat => {
+        const click = stat.action ? ` onclick="${stat.action}()"` : '';
+        const clickable = stat.action ? ' clickable' : '';
+        const tone = stat.tone ? ` ${stat.tone}` : '';
+        const suffix = stat.suffix ? `<span style="font-size:11px;color:var(--text-dim);">${escapeHtml(stat.suffix)}</span>` : '';
+        return `<div class="stat${clickable}"${click}><div class="stat-label">${escapeHtml(stat.label)}</div><div class="stat-value${tone}">${escapeHtml(view.data[stat.key])}${suffix}</div></div>`;
+      }).join('');
+    }
+
+    function renderBottlenecks(view) {
+      const cards = (view.schema && view.schema.cards) || [];
+      const detail = view.schema && view.schema.cardDetail;
+      document.getElementById('bottleneckPanels').innerHTML = cards.map(card => bottleneckCard(card.label, view.data[card.key], card.tone, detail)).join('');
+    }
+
+    function renderOrUpdateBar(labels, values, title) {
       const ctx = document.getElementById('rankChart');
       if (rankChart) {
         rankChart.data.labels = labels;
         rankChart.data.datasets[0].data = values;
+        rankChart.options.plugins.title.text = title;
         rankChart.update('none');
         return;
       }
@@ -474,378 +600,237 @@
         data: { labels, datasets: [{ data: values, backgroundColor: COLOR.cpu, borderRadius: 3, barThickness: 14 }] },
         options: {
           indexAxis: 'y',
-          plugins: { legend: { display: false }, title: { display: true, text: 'Top 5 endpoints (ms)', color: COLOR.muted, font: { size: 11, weight: '500' }, align: 'start', padding: { bottom: 10 } } },
+          plugins: { legend: { display: false }, title: { display: true, text: title, color: COLOR.muted, font: { size: 11, weight: '500' }, align: 'start', padding: { bottom: 10 } } },
           scales: {
             x: { grid: { color: COLOR.grid }, ticks: { color: COLOR.muted, font: { family: "'JetBrains Mono'", size: 10.5 } } },
-            y: { grid: { display: false }, ticks: { color: '#e4e7ec', font: { size: 11 } } }
+            y: { grid: { display: false }, ticks: { color: COLOR.text, font: { size: 11 } } }
           }
         }
       });
     }
 
-    function initHeartbeatChart() {
-      const ctx = document.getElementById('heartbeatChart');
-      heartbeatChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: [],
-          datasets: [
-            { label: 'CPU ms/s', data: [], borderColor: COLOR.cpu, backgroundColor: 'rgba(63,177,206,0.12)', borderWidth: 1.5, pointRadius: 0, tension: 0.25, fill: true, stack: 'load' },
-            { label: 'DB ms/s', data: [], borderColor: COLOR.db, backgroundColor: 'rgba(224,166,64,0.12)', borderWidth: 1.5, pointRadius: 0, tension: 0.25, fill: true, stack: 'load' }
-          ]
-        },
-        options: {
-          animation: { duration: 250 },
-          interaction: { mode: 'index', intersect: false },
-          plugins: {
-            title: { display: true, text: 'CPU vs. DB (ms/s)', color: COLOR.muted, font: { size: 11, weight: '500' }, align: 'start', padding: { bottom: 10 } },
-            legend: { position: 'bottom', labels: { color: '#9aa3b2', font: { size: 10.5 }, boxWidth: 10, boxHeight: 10 } }
+    function ensureHeartbeat(view) {
+      const series = (view.schema && view.schema.series) || [];
+      const timeKey = view.schema && view.schema.timeKey;
+      const rows = view.data || [];
+      if (!heartbeatChart) {
+        heartbeatChart = new Chart(document.getElementById('heartbeatChart'), {
+          type: 'line',
+          data: {
+            labels: [],
+            datasets: series.map(item => ({
+              label: item.label, data: [], borderColor: COLOR[item.tone], backgroundColor: COLOR[item.tone] + '22',
+              borderWidth: 1.5, pointRadius: 0, tension: 0.25, fill: true, stack: 'load'
+            }))
           },
-          scales: {
-            x: { display: false },
-            y: { stacked: true, grid: { color: COLOR.grid }, ticks: { color: COLOR.muted, font: { family: "'JetBrains Mono'", size: 10 } } }
+          options: {
+            animation: { duration: 250 },
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+              title: { display: true, text: (view.schema && view.schema.title) || '', color: COLOR.muted, font: { size: 11, weight: '500' }, align: 'start', padding: { bottom: 10 } },
+              legend: { position: 'bottom', labels: { color: COLOR.muted, font: { size: 10.5 }, boxWidth: 10, boxHeight: 10 } }
+            },
+            scales: {
+              x: { display: false },
+              y: { stacked: true, grid: { color: COLOR.grid }, ticks: { color: COLOR.muted, font: { family: "'JetBrains Mono'", size: 10 } } }
+            }
           }
-        }
+        });
+      }
+      heartbeatChart.data.labels = rows.map(row => new Date(row[timeKey]).toLocaleTimeString());
+      series.forEach((item, index) => {
+        heartbeatChart.data.datasets[index].data = rows.map(row => row[item.key]);
       });
-    }
-
-    async function refreshHeartbeat() {
-      const res = await fetch(BASE + '/monitor/api/history');
-      const points = await res.json();
-      heartbeatChart.data.labels = points.map(p => new Date(p.time).toLocaleTimeString());
-      heartbeatChart.data.datasets[0].data = points.map(p => p.cpuTimeMsPerSec);
-      heartbeatChart.data.datasets[1].data = points.map(p => p.dbTimeMsPerSec);
       heartbeatChart.update('none');
     }
 
     async function loadMethods(endpointKey) {
       selectedEndpoint = endpointKey;
-      const methodsUrl = new URL(BASE + '/monitor/api/endpoint-methods', window.location.origin);
-      methodsUrl.searchParams.set('key', endpointKey);
-      methodsUrl.searchParams.set('sortBy', methodSort.by);
-      methodsUrl.searchParams.set('sortDir', methodSort.dir);
-      const res = await fetch(methodsUrl);
-      const methods = await res.json();
-
+      const view = await loadView(withParams(PATHS.endpointMethods, {
+        [PARAMS.key]: endpointKey,
+        [PARAMS.sortBy]: methodSort.by,
+        [PARAMS.sortDir]: methodSort.dir
+      }));
       document.getElementById('methodsSection').style.display = 'block';
-      document.getElementById('methodsTitle').innerHTML = 'Methods inside <span style="font-family:var(--mono); color:var(--text); text-transform:none; letter-spacing:0;">' + shortLabel(endpointKey) + '</span>';
-
-      const tbody = document.getElementById('methodsBody');
-      tbody.innerHTML = '';
-
-      methods.forEach(m => {
-        const tr = document.createElement('tr');
-        const n1Badge = m.n1Warning
-          ? `<span class="n1-badge ${m.callsPerRequest >= 50 ? 'severe' : ''}" title="Called on average ${m.callsPerRequest}x per request">⚠ N+1 · ${m.callsPerRequest}×</span>`
-          : '';
-        tr.innerHTML = `
-          <td class="name-cell"><span class="method">${m.className}.</span>${m.methodName}${n1Badge}</td>
-          <td>${layerPill(m.layer)}</td>
-          <td class="num">${m.callCount}</td>
-          <td class="num">${m.errorCount}</td>
-          <td class="num ${timeClass(m.selfTimeMs)}">${m.selfTimeMs}</td>
-          <td class="num ${timeClass(m.p95TimeMs)}">${m.p95TimeMs}</td>
-          <td class="num ${timeClass(m.p99TimeMs)}">${m.p99TimeMs}</td>
-          <td class="num ${timeClass(m.totalTimeMs)}">${m.totalTimeMs}</td>
-          <td class="num ${timeClass(m.dbTimeMs)}">${m.dbTimeMs}</td>
-          <td class="num">${m.memoryKb}</td>
-          <td class="num"><span class="type-tag ${m.bottleneckType.toLowerCase()}">${m.bottleneckType}</span></td>
-        `;
-        tbody.appendChild(tr);
-      });
-
+      const template = (view.schema && view.schema.titleTemplate) || '';
+      document.getElementById('methodsTitle').innerHTML = template.replace('{label}', '<span style="font-family:var(--mono); color:var(--text); text-transform:none; letter-spacing:0;">' + shortLabel(endpointKey) + '</span>');
+      renderTable('methodsBody', 'methodsHeadRow', view);
       updateSortHeaders('methodsHeadRow', methodSort);
     }
 
     async function refresh() {
-      const endpointsUrl = new URL(BASE + '/monitor/api/endpoints', window.location.origin);
-      if (endpointSearch) endpointsUrl.searchParams.set('search', endpointSearch);
-      endpointsUrl.searchParams.set('sortBy', endpointSort.by);
-      endpointsUrl.searchParams.set('sortDir', endpointSort.dir);
-      endpointsUrl.searchParams.set('limit', endpointLimit);
-
-      const [overviewRes, endpointsRes] = await Promise.all([
-        fetch(BASE + '/monitor/api/overview'),
-        fetch(endpointsUrl)
-      ]);
-      const overview = await overviewRes.json();
-      const endpoints = await endpointsRes.json();
-
-      document.getElementById('panels').innerHTML = `
-<!--        <div class="stat"><div class="stat-label">Total calls</div><div class="stat-value">${overview.totalCalls}</div></div>-->
-        <div class="stat clickable" onclick="toggleTopCalledPanel()"><div class="stat-label">Total calls</div><div class="stat-value">${overview.totalCalls}</div></div>
-        <div class="stat clickable" onclick="toggleErrorsPanel()"><div class="stat-label">Errors</div><div class="stat-value err">${overview.totalErrors}</div></div>
-        <div class="stat"><div class="stat-label">DB time</div><div class="stat-value db">${overview.dbTimeMs}<span style="font-size:11px;color:var(--text-dim);"> ms</span></div></div>
-        <div class="stat"><div class="stat-label">CPU time</div><div class="stat-value cpu">${overview.cpuTimeMs}<span style="font-size:11px;color:var(--text-dim);"> ms</span></div></div>
-      `;
-
-      document.getElementById('bottleneckPanels').innerHTML =
-        bottleneckCard('Top CPU bottleneck', overview.topCpuBottleneck, 'cpu') +
-        bottleneckCard('Top IO bottleneck', overview.topDatabaseBottleneck, 'db') +
-        bottleneckCard('Top other bottleneck', overview.topUnknownBottleneck, 'err');
-
-      document.getElementById('aiSectionWrap').style.display = overview.aiEnabled ? 'block' : 'none';
-
-      renderOrUpdateBar(
-        endpoints.slice(0, 5).map(e => shortLabel(e.key)),
-        endpoints.slice(0, 5).map(e => e.totalTimeMs)
-      );
-
-      const tbody = document.getElementById('endpointsBody');
-      tbody.innerHTML = '';
-      endpoints.forEach(ep => {
-        const tr = document.createElement('tr');
-        tr.className = 'row-clickable' + (ep.key === selectedEndpoint ? ' row-selected' : '');
-        tr.innerHTML = `
-          <td class="name-cell mono">${shortLabel(ep.key)}</td>
-          <td class="num">${ep.callCount}</td>
-          <td class="num">${ep.errorCount}</td>
-          <td class="num ${timeClass(ep.avgTimeMs)}">${ep.avgTimeMs}</td>
-          <td class="num ${timeClass(ep.p95TimeMs)}">${ep.p95TimeMs}</td>
-          <td class="num ${timeClass(ep.p99TimeMs)}">${ep.p99TimeMs}</td>
-          <td class="num ${timeClass(ep.maxTimeMs)}">${ep.maxTimeMs}</td>
-          <td class="num ${timeClass(ep.totalTimeMs)}">${ep.totalTimeMs}</td>
-          <td class="num ${timeClass(ep.dbTimeMs)}">${ep.dbTimeMs}</td>
-          <td class="num">${ep.memoryKb}</td>
-        `;
-        tr.onclick = () => loadMethods(ep.key);
-        tbody.appendChild(tr);
+      const endpointsUrl = withParams(PATHS.endpoints, {
+        [PARAMS.search]: endpointSearch,
+        [PARAMS.sortBy]: endpointSort.by,
+        [PARAMS.sortDir]: endpointSort.dir,
+        [PARAMS.limit]: endpointLimit
       });
-
+      const [overview, endpoints, historyView] = await Promise.all([
+        loadView(apiUrl(PATHS.overview)),
+        loadView(endpointsUrl),
+        loadView(apiUrl(PATHS.history))
+      ]);
+      renderStats(overview);
+      renderBottlenecks(overview);
+      const chart = (endpoints.schema && endpoints.schema.chart) || {};
+      const rows = (endpoints.data || []).slice(0, chart.limit);
+      renderOrUpdateBar(rows.map(row => shortLabel(row[chart.labelKey])), rows.map(row => row[chart.valueKey]), chart.title);
+      const rowKey = endpoints.schema && endpoints.schema.rowKey;
+      renderTable('endpointsBody', 'endpointsHeadRow', endpoints, (tr, row) => {
+        tr.className = 'row-clickable' + (row[rowKey] === selectedEndpoint ? ' row-selected' : '');
+        tr.onclick = () => loadMethods(row[rowKey]);
+      });
       updateSortHeaders('endpointsHeadRow', endpointSort);
       if (selectedEndpoint) loadMethods(selectedEndpoint);
-      refreshHeartbeat();
+      ensureHeartbeat(historyView);
       if (errorsVisible) loadErrors();
     }
 
     function closeErrorsModalOnBackdrop(event) {
       if (event.target.id === 'errorsModal') toggleErrorsPanel();
     }
-
     async function toggleErrorsPanel() {
       errorsVisible = !errorsVisible;
       document.getElementById('errorsModal').style.display = errorsVisible ? 'flex' : 'none';
       if (errorsVisible) await loadErrors();
     }
 
+    function renderCardField(row, field, maxMeter) {
+      const raw = field.render === 'endpoint' ? shortLabel(row[field.key]) : formatValue(row[field.key], field);
+      const suffix = field.suffix ? escapeHtml(field.suffix) : '';
+      if (field.role === 'time') return `<span class="err-item-top" style="float:right;">${raw}</span>`;
+      if (field.role === 'trace') return `<div style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:5px; cursor:pointer;" onclick="navigator.clipboard.writeText('${String(row[field.key]).replace(/'/g, '')}')">${escapeHtml(field.label)}: ${raw}</div>`;
+      if (field.role === 'title') return `<div class="err-item-type">${raw}</div>`;
+      if (field.role === 'message') return `<div class="err-item-msg">${raw}</div>`;
+      if (field.role === 'meter') {
+        const pct = maxMeter > 0 ? (Number(row[field.key]) / maxMeter) * 100 : 0;
+        return `<div style="padding:8px 0; border-bottom:1px solid var(--border);"><div style="display:flex; justify-content:space-between; font-size:12.5px;"><span style="font-family:var(--mono); color:var(--text);">${shortLabel(row.key)}</span><span style="font-family:var(--mono); color:var(--cpu); font-weight:600;">${raw}</span></div><div style="background:var(--border); border-radius:3px; height:4px; margin-top:5px; overflow:hidden;"><div style="background:var(--cpu); height:100%; width:${pct}%;"></div></div></div>`;
+      }
+      return `<div class="err-item-method">${raw}${suffix}</div>`;
+    }
+
+    function renderCards(containerId, view) {
+      const container = document.getElementById(containerId);
+      const rows = view.data || [];
+      const fields = (view.schema && view.schema.fields) || [];
+      if (!view.ok && view.message) {
+        container.innerHTML = `<div class="empty-note">${escapeHtml(view.message)}</div>`;
+        return;
+      }
+      if (!rows.length) {
+        container.innerHTML = `<div class="empty-note">${escapeHtml((view.schema && view.schema.empty) || MESSAGES.noData)}</div>`;
+        return;
+      }
+      const meter = fields.find(field => field.role === 'meter');
+      const maxMeter = meter ? Math.max(...rows.map(row => Number(row[meter.key]) || 0)) : 0;
+      const flagKey = view.schema && view.schema.flagKey;
+      container.innerHTML = rows.map(row => {
+        const flagged = flagKey && row[flagKey];
+        const body = fields.map(field => renderCardField(row, field, maxMeter)).join('');
+        return `<div class="err-item" style="border-left-color:${flagged ? 'var(--err)' : 'var(--border-strong)'};">${body}</div>`;
+      }).join('');
+    }
+
     async function loadErrors() {
-      const res = await fetch(BASE + '/monitor/api/errors');
-      const errors = await res.json();
-      const container = document.getElementById('errorsList');
-
-      if (errors.length === 0) {
-        container.innerHTML = '<div class="empty-note">No errors recorded in the current window.</div>';
-        return;
-      }
-
-      container.innerHTML = errors.map(e => `
-        <div class="err-item">
-          <div class="err-item-top"><span>${e.endpoint}</span><span>${new Date(e.time).toLocaleString()}</span></div>
-          <div class="err-item-type">${e.exceptionType}</div>
-          <div class="err-item-method">${e.method}</div>
-          <div class="err-item-msg">${e.message || '(no message)'}</div>
-          <div style="font-family:var(--mono); font-size:10.5px; color:var(--text-dim); margin-top:5px; cursor:pointer;" title="Click To Copy" onclick="navigator.clipboard.writeText('${e.traceId}')">trace: ${e.traceId}</div>
-        </div>
-      `).join('');
+      renderCards('errorsList', await loadView(apiUrl(PATHS.errors)));
     }
 
-    function severityClass(sev) {
-      return { HIGH: 'sev-high', MEDIUM: 'sev-medium', LOW: 'sev-low' }[sev] || 'sev-low';
-    }
-
-    function renderAiResults(rawJson) {
+    function renderReport(view) {
       const container = document.getElementById('aiResults');
-      let items;
-      try { items = JSON.parse(rawJson); }
-      catch (e) {
-        container.innerHTML = `<pre style="white-space:pre-wrap; color:var(--text-muted); font-size:12px; padding:14px 16px; margin:0;">${rawJson}</pre>`;
+      if (!view.ok) {
+        container.innerHTML = `<div class="empty-note" style="color:var(--err);">${escapeHtml(view.message || MESSAGES.requestFailed)}</div>`;
         return;
       }
-      container.innerHTML = items.map(item => `
-        <div class="finding ${severityClass(item.severity)}">
-          <div class="finding-top">
-            <span class="finding-endpoint">${item.endpoint || ''}</span>
-            <span class="finding-meta">${item.severity || ''} · ${item.cause || ''}</span>
-          </div>
-          <div class="finding-issue">${item.issue || ''}</div>
-          <div class="finding-suggestion">${item.suggestion || ''}</div>
-        </div>
-      `).join('');
+      const data = view.data || {};
+      const fields = (view.schema && view.schema.fields) || [];
+      const byRole = role => fields.find(field => field.role === role);
+      const where = byRole('where');
+      const problem = byRole('problem');
+      const confidence = byRole('confidence');
+      const summary = byRole('summary');
+      const suggestion = byRole('suggestion');
+      const meta = byRole('meta');
+      const evidence = data[(view.schema && view.schema.evidenceKey) || ''] || [];
+      const headline = `<div class="finding sev-${escapeHtml(String(data.severity || '').toLowerCase())}"><div class="finding-top"><span class="finding-endpoint">${escapeHtml(data[where && where.key] || '')}</span><span class="finding-meta">${escapeHtml(data[problem && problem.key] || '')} · ${confidence ? formatValue(data[confidence.key], confidence) : ''}</span></div><div class="finding-issue">${escapeHtml(data[summary && summary.key] || '')}</div><div class="finding-suggestion">${suggestion ? escapeHtml(suggestion.label) + ': ' : ''}${escapeHtml(data[suggestion && suggestion.key] || '')}</div>${evidence.length ? `<div class="finding-issue">${evidence.map(escapeHtml).join(' · ')}</div>` : ''}</div>`;
+      const findingFields = (view.schema && view.schema.findingFields) || [];
+      const extras = (data.findings || []).map(item => `<div class="finding sev-${escapeHtml(String(item.severity || '').toLowerCase())}">${findingFields.map(field => `<div class="${field.role === 'suggestion' ? 'finding-suggestion' : 'finding-issue'}"><span class="finding-meta">${escapeHtml(field.label)}</span> ${formatValue(item[field.key], field)}</div>`).join('')}</div>`).join('');
+      container.innerHTML = headline + extras;
+      if (meta && data[meta.key]) document.getElementById('aiTimestamp').textContent = data[meta.key];
     }
 
     async function runAiAnalysis(forceRefresh) {
       const btn = document.getElementById('aiAnalyzeBtn');
       const refreshBtn = document.getElementById('aiRefreshBtn');
-      btn.disabled = true; refreshBtn.disabled = true;
-      document.getElementById('aiResults').innerHTML = '<div class="empty-note">Analyzing…</div>';
-
+      btn.disabled = true;
+      refreshBtn.disabled = true;
+      document.getElementById('aiResults').innerHTML = `<div class="empty-note">${escapeHtml(MESSAGES.analyzing)}</div>`;
       try {
-        const res = await fetch(BASE + '/monitor/api/ai-analysis?refresh=' + forceRefresh, { method: 'POST' });
-        const data = await res.json();
-        if (!res.ok) {
-          document.getElementById('aiResults').innerHTML = `<div class="empty-note" style="color:var(--err);">${data.error}</div>`;
-          return;
-        }
-        renderAiResults(data.rawJson);
-        document.getElementById('aiTimestamp').textContent = new Date(data.generatedAtMillis).toLocaleTimeString();
-      } catch (e) {
-        document.getElementById('aiResults').innerHTML = `<div class="empty-note" style="color:var(--err);">Request failed: ${e}</div>`;
+        renderReport(await loadView(withParams(PATHS.analyze, { [PARAMS.refresh]: forceRefresh }), { method: 'POST' }));
+      } catch (error) {
+        document.getElementById('aiResults').innerHTML = `<div class="empty-note" style="color:var(--err);">${escapeHtml(MESSAGES.requestFailed)}</div>`;
       } finally {
-        btn.disabled = false; refreshBtn.disabled = false;
+        btn.disabled = false;
+        refreshBtn.disabled = false;
       }
     }
 
-<!--    api calls couter-->
     function closeTopCalledModalOnBackdrop(event) {
-        if (event.target.id === 'topCalledModal') toggleTopCalledPanel();
+      if (event.target.id === 'topCalledModal') toggleTopCalledPanel();
     }
-
     async function toggleTopCalledPanel() {
-        topCalledVisible = !topCalledVisible;
-        document.getElementById('topCalledModal').style.display = topCalledVisible ? 'flex' : 'none';
-        if (topCalledVisible) await loadTopCalled();
+      topCalledVisible = !topCalledVisible;
+      document.getElementById('topCalledModal').style.display = topCalledVisible ? 'flex' : 'none';
+      if (topCalledVisible) renderCards('topCalledList', await loadView(apiUrl(PATHS.topCalled)));
     }
 
-    async function loadTopCalled() {
-        const res = await fetch(BASE + '/monitor/api/top-called');
-        const items = await res.json();
-        const container = document.getElementById('topCalledList');
-
-        if (items.length === 0) {
-            container.innerHTML = '<div class="empty-note">No calls recorded yet.</div>';
-            return;
-        }
-
-        const maxCalls = items[0].callCount;
-        container.innerHTML = items.map((item, i) => {
-            const pct = maxCalls > 0 ? (item.callCount / maxCalls) * 100 : 0;
-            return `
-                <div style="padding:8px 0; border-bottom:1px solid var(--border);">
-                    <div style="display:flex; justify-content:space-between; font-size:12.5px;">
-                        <span style="font-family:var(--mono); color:var(--text);">${i + 1}. ${shortLabel(item.key)}</span>
-                        <span style="font-family:var(--mono); color:var(--cpu); font-weight:600;">${item.callCount}</span>
-                    </div>
-                    <div style="background:var(--border); border-radius:3px; height:4px; margin-top:5px; overflow:hidden;">
-                        <div style="background:var(--cpu); height:100%; width:${pct}%;"></div>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-<!--    trace-->
     function closeTracesModalOnBackdrop(event) {
-        if (event.target.id === 'tracesModal') toggleTracesPanel();
+      if (event.target.id === 'tracesModal') toggleTracesPanel();
     }
-
     async function toggleTracesPanel() {
-        tracesVisible = !tracesVisible;
-        document.getElementById('tracesModal').style.display = tracesVisible ? 'flex' : 'none';
-        if (tracesVisible) await loadTraces('');
+      tracesVisible = !tracesVisible;
+      document.getElementById('tracesModal').style.display = tracesVisible ? 'flex' : 'none';
+      if (tracesVisible) await loadTraces('');
     }
-
     async function loadTraces(query) {
-        const url = query ? BASE+ '/monitor/api/traces?traceId=' + encodeURIComponent(query) : BASE + '/monitor/api/traces';
-        const res = await fetch(url);
-        const items = await res.json();
-        const container = document.getElementById('tracesList');
-
-        if (items.length === 0) {
-            container.innerHTML = '<div class="empty-note">Nothing was found</div>';
-            return;
-        }
-
-        container.innerHTML = items.map(t => `
-            <div class="err-item" style="border-left-color:${t.error ? 'var(--err)' : 'var(--border-strong)'};">
-                <div class="err-item-top">
-                    <span style="cursor:pointer;" title="Click To Copy" onclick="navigator.clipboard.writeText('${t.traceId}')">${t.traceId}</span>
-                    <span>${new Date(t.time).toLocaleString()}</span>
-                </div>
-                <div class="err-item-method">${t.endpoint} — ${t.durationMs} ms ${t.error ? '<span style="color:var(--err);">(error)</span>' : ''}</div>
-            </div>
-        `).join('');
+      const url = query ? withParams(PATHS.traces, { [PARAMS.traceId]: query }) : apiUrl(PATHS.traces);
+      renderCards('tracesList', await loadView(url));
     }
-
-<!--    graph section-->
 
     function closeCallGraphModalOnBackdrop(event) {
-        if (event.target.id === 'callGraphModal') toggleCallGraphPanel();
+      if (event.target.id === 'callGraphModal') toggleCallGraphPanel();
     }
-
     async function toggleCallGraphPanel() {
-        callGraphVisible = !callGraphVisible;
-        document.getElementById('callGraphModal').style.display = callGraphVisible ? 'flex' : 'none';
-        if (callGraphVisible) await loadCallGraph();
-    }
-
-    async function loadCallGraph() {
-        const res = await fetch(BASE + '/monitor/api/call-graph');
-        const edges = await res.json();
-        const tbody = document.getElementById('callGraphBody');
-
-        if (edges.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="empty-note">No data yet.</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = edges.map(e => `
-            <tr>
-                <td class="mono" style="font-size:12px;">${shortLabel(e.edge.split(' -> ')[0])} <span style="color:var(--text-dim);">→</span> ${shortLabel(e.edge.split(' -> ')[1])}</td>
-                <td class="num">${e.callCount}</td>
-                <td class="num ${timeClass(e.totalTimeMs)}">${e.totalTimeMs}</td>
-            </tr>
-        `).join('');
+      callGraphVisible = !callGraphVisible;
+      document.getElementById('callGraphModal').style.display = callGraphVisible ? 'flex' : 'none';
+      if (callGraphVisible) renderTable('callGraphBody', 'callGraphHeadRow', await loadView(apiUrl(PATHS.callGraph)));
     }
 
     function closeBackgroundModalOnBackdrop(event) {
-        if (event.target.id === 'backgroundModal') toggleBackgroundPanel();
+      if (event.target.id === 'backgroundModal') toggleBackgroundPanel();
     }
-
     async function toggleBackgroundPanel() {
-        backgroundVisible = !backgroundVisible;
-        document.getElementById('backgroundModal').style.display = backgroundVisible ? 'flex' : 'none';
-        if (backgroundVisible) await loadBackgroundRoots();
+      backgroundVisible = !backgroundVisible;
+      document.getElementById('backgroundModal').style.display = backgroundVisible ? 'flex' : 'none';
+      if (backgroundVisible) renderTable('backgroundBody', 'backgroundHeadRow', await loadView(apiUrl(PATHS.backgroundRoots)));
     }
 
-    async function loadBackgroundRoots() {
-        const res = await fetch(BASE+ '/monitor/api/background-roots');
-        const items = await res.json();
-        const tbody = document.getElementById('backgroundBody');
-
-        if (items.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" class="empty-note">Nothing recorded yet.</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = items.map(ep => `
-            <tr>
-                <td class="mono">${shortLabel(ep.key)}</td>
-                <td class="num">${ep.callCount}</td>
-                <td class="num">${ep.avgTimeMs}</td>
-                <td class="num ${timeClass(ep.totalTimeMs)}">${ep.totalTimeMs}</td>
-            </tr>
-        `).join('');
-    }
-
-    initHeartbeatChart();
+    initPageSize();
     refresh();
 
-    document.getElementById('endpointsHeadRow').addEventListener('click', (e) => {
-        const th = e.target.closest('th[data-sort]');
-        if (!th) return;
-        applySort(endpointSort, th.dataset.sort);
-        refresh();
+    document.getElementById('endpointsHeadRow').addEventListener('click', (event) => {
+      const th = event.target.closest('th[data-sort]');
+      if (!th) return;
+      applySort(endpointSort, th.dataset.sort);
+      refresh();
+    });
+    document.getElementById('methodsHeadRow').addEventListener('click', (event) => {
+      const th = event.target.closest('th[data-sort]');
+      if (!th) return;
+      applySort(methodSort, th.dataset.sort);
+      if (selectedEndpoint) loadMethods(selectedEndpoint);
     });
 
-    document.getElementById('methodsHeadRow').addEventListener('click', (e) => {
-        const th = e.target.closest('th[data-sort]');
-        if (!th) return;
-        applySort(methodSort, th.dataset.sort);
-        if (selectedEndpoint) loadMethods(selectedEndpoint);
-    });
-
-
-    autoRefreshTimer = setInterval(refresh, 3000);
+    autoRefreshTimer = setInterval(refresh, UI.refreshMillis);
 </script>
 </body>
 </html>

@@ -2,6 +2,7 @@ package com.issa.smartmonitor.web;
 
 import com.issa.smartmonitor.aspect.HttpEndpointContext;
 import com.issa.smartmonitor.aspect.TraceContext;
+import com.issa.smartmonitor.config.SmartMonitorProperties;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -14,9 +15,11 @@ import java.util.UUID;
 
 public class TraceIdFilter extends OncePerRequestFilter {
 
-    public static final String MDC_KEY = "traceId";
-    public static final String RESPONSE_HEADER = "X-Trace-Id";
-    private static final String[] INBOUND_HEADERS = {"X-Request-Id", "X-Correlation-Id", "X-Trace-Id"};
+    private final SmartMonitorProperties properties;
+
+    public TraceIdFilter(SmartMonitorProperties properties) {
+        this.properties = properties;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -27,27 +30,28 @@ public class TraceIdFilter extends OncePerRequestFilter {
         }
 
         TraceContext.set(traceId);
-        MDC.put(MDC_KEY, traceId);
-        response.setHeader(RESPONSE_HEADER, traceId);
+        MDC.put(properties.getTrace().getMdcKey(), traceId);
+        response.setHeader(properties.getTrace().getResponseHeader(), traceId);
 
         try {
             filterChain.doFilter(request, response);
         } finally {
             TraceContext.clear();
             HttpEndpointContext.clear();
-            MDC.remove(MDC_KEY);
+            MDC.remove(properties.getTrace().getMdcKey());
         }
     }
 
     private String extractInbound(HttpServletRequest request) {
-        for (String header : INBOUND_HEADERS) {
+        for (String header : properties.getTrace().getInboundHeaders()) {
             String value = request.getHeader(header);
             if (value != null && !value.isBlank()) return value;
         }
-        String traceparent = request.getHeader("traceparent");
+        String traceparent = request.getHeader(properties.getTrace().getTraceParentHeader());
         if (traceparent != null) {
-            String[] parts = traceparent.split("-");
-            if (parts.length >= 2 && !parts[1].isBlank()) return parts[1];
+            String[] parts = traceparent.split(properties.getTrace().getTraceParentSeparator());
+            int index = properties.getTrace().getTraceParentIndex();
+            if (parts.length > index && !parts[index].isBlank()) return parts[index];
         }
         return null;
     }

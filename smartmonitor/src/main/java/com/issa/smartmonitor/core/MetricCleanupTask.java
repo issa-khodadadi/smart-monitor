@@ -13,9 +13,9 @@ public class MetricCleanupTask {
         this.properties = properties;
     }
 
-    @Scheduled(fixedDelay = 30_000L)
+    @Scheduled(fixedDelayString = "${smartmonitor.cleanup-interval-millis}")
     public void cleanup() {
-        long windowMillis = properties.getWindowMinutes() * 60_000L;
+        long windowMillis = properties.getWindowMinutes() * properties.getUnits().getMillisPerMinute();
         registry.evictOlderThan(windowMillis);
     }
 }

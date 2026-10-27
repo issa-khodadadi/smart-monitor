@@ -10,7 +10,7 @@ public class AiAnalysisService {
     private final MetricRegistry registry;
     private final SmartMonitorProperties properties;
     private final AiAnalysisProvider provider;
-    private final PromptBuilder promptBuilder = new PromptBuilder();
+    private final PromptBuilder promptBuilder;
 
     private final AtomicReference<AiAnalysisResult> cache = new AtomicReference<>();
 
@@ -18,6 +18,7 @@ public class AiAnalysisService {
         this.registry = registry;
         this.properties = properties;
         this.provider = provider;
+        this.promptBuilder = new PromptBuilder(properties.getAi().getPromptEndpoints(), properties.getUnits().getRoundFactor());
     }
 
     public boolean isEnabled() {
@@ -26,11 +27,11 @@ public class AiAnalysisService {
 
     public synchronized AiAnalysisResult analyze(boolean forceRefresh) {
         if (!isEnabled()) {
-            throw new AiAnalysisException("AI analysis is not enabled or misconfigured.", null);
+            throw new AiAnalysisException(properties.getMessages().getAiDisabled(), null);
         }
 
         AiAnalysisResult cached = cache.get();
-        long cacheMillis = properties.getAi().getCacheSeconds() * 1000L;
+        long cacheMillis = properties.getAi().getCacheSeconds() * (long) properties.getUnits().getMillisPerSecond();
         if (!forceRefresh && cached != null &&
                 (System.currentTimeMillis() - cached.getGeneratedAtMillis()) < cacheMillis) {
             return cached;
@@ -44,7 +45,7 @@ public class AiAnalysisService {
             cache.set(analysisResult);
             return analysisResult;
         } catch (Exception e) {
-            throw new AiAnalysisException("AI analysis failed: " + e.getMessage(), e);
+            throw new AiAnalysisException(properties.getMessages().getAiFailed(), e);
         }
     }
 }

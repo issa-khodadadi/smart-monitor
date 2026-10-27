@@ -4,6 +4,7 @@ import com.github.tjake.jlama.model.AbstractModel;
 import com.github.tjake.jlama.model.ModelSupport;
 import com.github.tjake.jlama.safetensors.DType;
 import com.github.tjake.jlama.safetensors.prompt.PromptContext;
+import com.issa.smartmonitor.config.SmartMonitorProperties;
 import org.springframework.core.io.ClassPathResource;
 
 import java.io.File;
@@ -14,16 +15,13 @@ import java.util.UUID;
 
 public class JlamaProvider implements AiAnalysisProvider {
 
-    private static final String BUNDLED_MODEL_RESOURCE_PATH = "models/tuned";
-    private static final String[] MODEL_FILES = {
-            "config.json", "tokenizer.json", "tokenizer_config.json", "model.safetensors"
-    };
-
+    private final SmartMonitorProperties properties;
     private final String workingDirectory;
     private volatile AbstractModel model;
 
-    public JlamaProvider(String workingDirectory) {
-        this.workingDirectory = workingDirectory;
+    public JlamaProvider(SmartMonitorProperties properties) {
+        this.properties = properties;
+        this.workingDirectory = properties.getAi().getLocalModelPath();
     }
 
     private synchronized AbstractModel getOrLoadModel() {
@@ -47,16 +45,17 @@ public class JlamaProvider implements AiAnalysisProvider {
     }
 
     private File extractBundledModel() throws Exception {
-        ClassPathResource marker = new ClassPathResource(BUNDLED_MODEL_RESOURCE_PATH + "/config.json");
+        String bundled = properties.getAi().getBundledResource();
+        ClassPathResource marker = new ClassPathResource(bundled + "/config.json");
         if (!marker.exists()) {
-            throw new AiAnalysisException("Bundled model not found on classpath at " + BUNDLED_MODEL_RESOURCE_PATH, null);
+            throw new AiAnalysisException("Bundled model not found on classpath at " + bundled, null);
         }
 
         File targetDir = new File(workingDirectory, "bundled-tuned-model");
         targetDir.mkdirs();
 
-        for (String fileName : MODEL_FILES) {
-            ClassPathResource resource = new ClassPathResource(BUNDLED_MODEL_RESOURCE_PATH + "/" + fileName);
+        for (String fileName : properties.getAi().getModelFiles()) {
+            ClassPathResource resource = new ClassPathResource(properties.getAi().getBundledResource() + "/" + fileName);
             if (!resource.exists()) continue;
 
             File targetFile = new File(targetDir, fileName);
@@ -78,14 +77,19 @@ public class JlamaProvider implements AiAnalysisProvider {
         if (m.promptSupport().isPresent()) {
             ctx = m.promptSupport().get()
                     .builder()
-                    .addSystemMessage("You are a performance monitoring assistant.")
+                    .addSystemMessage(properties.getAi().getSystemPrompt())
                     .addUserMessage(prompt)
                     .build();
         } else {
             ctx = PromptContext.of(prompt);
         }
 
-        var response = m.generate(UUID.randomUUID(), ctx, 0.2f, 400, (token, time) -> {});
+        var response = m.generate(
+                UUID.randomUUID(),
+                ctx,
+                (float) properties.getAi().getTemperature(),
+                properties.getAi().getMaxTokens(),
+                (token, time) -> {});
         String rawOutput = response.responseText;
 
         String parsed = parseLineFormatToJson(rawOutput);

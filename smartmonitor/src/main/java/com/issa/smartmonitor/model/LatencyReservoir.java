@@ -38,16 +38,16 @@ public class LatencyReservoir {
         return result;
     }
 
-    public static double percentileOf(long[] sortedValues, double p) {
+    public static double percentileOf(long[] sortedValues, double p, double percentScale) {
         if (sortedValues.length == 0) return 0;
-        int idx = (int) Math.ceil((p / 100.0) * sortedValues.length) - 1;
+        int idx = (int) Math.ceil((p / percentScale) * sortedValues.length) - 1;
         idx = Math.max(0, Math.min(sortedValues.length - 1, idx));
         return sortedValues[idx];
     }
 
-    public double percentileMs(double p) {
+    public double percentile(double p, double nanosPerMilli, double percentScale) {
         long[] values = snapshot();
         Arrays.sort(values);
-        return percentileOf(values, p) / 1_000_000.0;
+        return percentileOf(values, p, percentScale) / nanosPerMilli;
     }
 }

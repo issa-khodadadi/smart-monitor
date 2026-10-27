@@ -11,10 +11,11 @@ public class OllamaProvider implements AiAnalysisProvider {
     private final String model;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public OllamaProvider(String baseUrl, String model) {
-        this.model = model;
+    public OllamaProvider(com.issa.smartmonitor.config.SmartMonitorProperties properties) {
+        com.issa.smartmonitor.config.SmartMonitorProperties.Ai ai = properties.getAi();
+        this.model = ai.getModel();
         this.restClient = RestClient.builder()
-                .baseUrl(baseUrl)
+                .baseUrl(ai.getOllamaBaseUrl())
                 .build();
     }
 

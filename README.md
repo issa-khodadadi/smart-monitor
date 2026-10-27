@@ -64,10 +64,18 @@ All settings are optional; sensible defaults apply if omitted.
 ```yaml
 smartmonitor:
   window-minutes: 15              # how long metrics are kept before eviction
-  cleanup-interval-seconds: 60    # how often the eviction sweep runs
+  cleanup-interval-millis: 60000  # how often the eviction sweep runs
   max-endpoints: 200              # max endpoints tracked at once (oldest evicted first)
   max-methods-per-endpoint: 100   # max methods tracked per endpoint (oldest evicted first)
+  ai:
+    enabled: true                 # local diagnostic model, no API key
+    provider: diagnostic          # or openai, anthropic, ollama, jlama
 ```
+
+Every monitor API returns the same envelope (`ok`, `view`, `schema`, `data`). The dashboard renders `schema` instead of assuming a fixed payload. Thresholds, paths, and labels ship in `smartmonitor-defaults.yaml` and `smartmonitor/monitor-views.json`; application config overrides them.
+
+`Analyze` runs a small model trained for this dashboard. It returns a short report, where the problem is, and how to fix it, without a network call.
+
 
 **About `window-minutes`:** metrics are kept in a rolling window, not accumulated indefinitely. Any endpoint or method not called within `window-minutes` is evicted automatically to keep memory usage bounded. If you leave the app idle longer than the window (default 15 minutes), the dashboard will appear to reset — this is expected. For local development sessions with long idle gaps, increase the window:
 
@@ -100,7 +108,7 @@ smartmonitor:
 - [ ] Published overhead/performance benchmarks
 - [ ] Optional metrics export (e.g. Prometheus exposition format)
 - [ ] Configurable/opt-out `/monitor` security bypass
-- [ ] AI-powered analysis and optimization suggestions
+- [x] In-process diagnostic analysis and a fix suggestion (`Analyze` on `/monitor`)
 
 ## Contributing
 

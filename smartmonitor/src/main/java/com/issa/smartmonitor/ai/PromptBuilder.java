@@ -8,12 +8,18 @@ import java.util.stream.Collectors;
 
 public class PromptBuilder {
 
-    private static final int MAX_ENDPOINTS = 3;
+    private final int maxEndpoints;
+    private final double roundFactor;
+
+    public PromptBuilder(int maxEndpoints, double roundFactor) {
+        this.maxEndpoints = maxEndpoints;
+        this.roundFactor = roundFactor;
+    }
 
     public String buildOverviewPrompt(List<EndpointStats> endpoints) {
         List<EndpointStats> top = endpoints.stream()
                 .sorted(Comparator.comparingDouble(EndpointStats::totalTimeMs).reversed())
-                .limit(MAX_ENDPOINTS)
+                .limit(maxEndpoints)
                 .toList();
 
         StringBuilder sb = new StringBuilder();
@@ -27,7 +33,7 @@ public class PromptBuilder {
             long calls = ep.getCallCount().sum();
             double errorRate = calls == 0 ? 0 : ((double) ep.getErrorCount().sum() / calls) * 100;
 
-            sb.append("- ").append(ep.getEndpointKey().replace("#", "."))
+            sb.append("- ").append(ep.getEndpointKey())
                     .append(": totalMs=").append(round(ep.totalTimeMs()))
                     .append(", selfMs=").append(round(ep.totalTimeMs()))
                     .append(", calls=").append(calls)
@@ -41,6 +47,6 @@ public class PromptBuilder {
     }
 
     private double round(double v) {
-        return Math.round(v * 100.0) / 100.0;
+        return Math.round(v * roundFactor) / roundFactor;
     }
 }

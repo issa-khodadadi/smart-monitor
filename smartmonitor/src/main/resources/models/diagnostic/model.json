@@ -1,0 +1,510 @@
+{
+  "id": "smartmonitor-diagnostic",
+  "version": "1.0.0",
+  "trainedOn": "synthetic-bottleneck-v1",
+  "trainer": "tools/train_diagnostic_model.py",
+  "seed": 27,
+  "holdoutAccuracy": 0.9969,
+  "minConfidence": 0.55,
+  "tailAvgFloor": 0.1,
+  "featureNames": [
+    "log1p_calls",
+    "log1p_avg_ms",
+    "log1p_p95_ms",
+    "log1p_p99_ms",
+    "log1p_max_ms",
+    "db_ratio",
+    "error_rate",
+    "log1p_calls_per_request",
+    "self_ratio",
+    "log1p_memory_kb",
+    "tail_ratio",
+    "fragmented",
+    "repository_share",
+    "log1p_errors",
+    "db_x_log_avg",
+    "cpr_x_db",
+    "error_x_log_calls"
+  ],
+  "labels": [
+    "HEALTHY",
+    "N_PLUS_ONE",
+    "SLOW_DATABASE",
+    "CPU_HOTSPOT",
+    "ERROR_BURST",
+    "TAIL_LATENCY",
+    "MEMORY_PRESSURE",
+    "FRAGMENTED_TRACE"
+  ],
+  "mean": [
+    5.62052845,
+    5.71778731,
+    6.4267968,
+    6.90959878,
+    7.40210338,
+    0.3898716,
+    0.08758524,
+    1.88092146,
+    0.49214424,
+    9.04887993,
+    5.98199551,
+    0.12209821,
+    0.37112342,
+    2.06380982,
+    2.29756477,
+    0.8579505,
+    0.51837267
+  ],
+  "std": [
+    0.87650516,
+    1.35285395,
+    1.23345181,
+    1.2473146,
+    1.28433103,
+    0.25249017,
+    0.18898771,
+    1.14232893,
+    0.23815072,
+    1.84032041,
+    9.97800624,
+    0.32739921,
+    0.24400947,
+    1.42148275,
+    1.79541863,
+    1.00457172,
+    1.15355857
+  ],
+  "weights": [
+    [
+      0.39319959,
+      -0.60686801,
+      -0.88478489,
+      -0.67023018,
+      -1.75466261,
+      0.1152129,
+      -1.09536254,
+      -0.23828586,
+      -0.6669231,
+      -1.87229454,
+      -1.23809504,
+      -1.79646251,
+      -0.5950833,
+      -1.57463591,
+      -0.0551642,
+      -0.61574525,
+      -1.05030461
+    ],
+    [
+      0.05722605,
+      -0.03799334,
+      0.17774557,
+      0.31534639,
+      0.28622732,
+      -0.10736766,
+      -0.18931543,
+      3.94393732,
+      -0.59578953,
+      -0.17630697,
+      0.03572049,
+      -0.19657098,
+      0.45812725,
+      -0.52763991,
+      0.00025265,
+      2.82753983,
+      -0.13772791
+    ],
+    [
+      -0.21546581,
+      1.53561824,
+      0.61520108,
+      0.32029952,
+      0.10468913,
+      1.16221107,
+      -0.45135832,
+      -1.64395184,
+      -1.17775568,
+      -0.86383039,
+      -0.60293679,
+      -0.57126687,
+      1.38639003,
+      0.02744769,
+      1.5284403,
+      -1.01604626,
+      -0.44752309
+    ],
+    [
+      -0.15211565,
+      2.59901625,
+      0.23673507,
+      -0.11164276,
+      -0.73363141,
+      -0.88849569,
+      -0.28811584,
+      -1.03372558,
+      3.33288972,
+      -0.85487142,
+      -0.88480204,
+      -0.14287602,
+      -0.4170376,
+      -0.2920834,
+      -0.44472818,
+      -0.7930533,
+      -0.24369143
+    ],
+    [
+      0.17534773,
+      0.04615457,
+      0.20121883,
+      0.01799711,
+      0.27449014,
+      -0.07875455,
+      1.78723431,
+      0.14530802,
+      0.16726442,
+      -0.63322818,
+      -0.14523742,
+      -0.07575054,
+      -0.19055127,
+      3.21040238,
+      0.02069069,
+      -0.01939736,
+      1.67650988
+    ],
+    [
+      0.46312644,
+      -2.75885895,
+      -0.11926115,
+      0.40049295,
+      1.89617822,
+      0.19919978,
+      0.18136427,
+      -0.45549631,
+      -0.35830272,
+      -1.06785849,
+      2.77549194,
+      -0.31777023,
+      -0.0573461,
+      -0.00363955,
+      -0.59552165,
+      -0.1405602,
+      0.18922945
+    ],
+    [
+      -0.54371075,
+      -0.53514813,
+      -0.00713201,
+      -0.10788658,
+      0.08789937,
+      -0.29515361,
+      0.06131874,
+      -0.78462314,
+      -0.14668698,
+      6.57148808,
+      0.05203084,
+      -0.03257789,
+      -0.69349723,
+      -0.4941556,
+      -0.30842099,
+      -0.22268319,
+      0.02089141
+    ],
+    [
+      -0.17760759,
+      -0.24192063,
+      -0.2197225,
+      -0.16437646,
+      -0.16119015,
+      -0.10685224,
+      -0.00576518,
+      0.06683739,
+      -0.55469613,
+      -1.10309809,
+      0.00782801,
+      3.13327503,
+      0.10899822,
+      -0.3456957,
+      -0.14554862,
+      -0.02005427,
+      -0.00738371
+    ]
+  ],
+  "bias": [
+    -1.4787325,
+    0.47192401,
+    0.35067581,
+    -1.28750222,
+    1.64465669,
+    1.29465217,
+    -0.87582361,
+    -0.11985036
+  ],
+  "reports": {
+    "HEALTHY": {
+      "problem": "No dominant bottleneck",
+      "severity": "LOW",
+      "weight": 0.15,
+      "locate": "endpoint",
+      "summary": "{where} is the busiest endpoint in this window and it still looks healthy: average {avgMs} ms, p99 {p99Ms} ms, database share {dbPercent}%.",
+      "suggestion": "Nothing to change right now. If p99 on {where} starts climbing far above the average, check pool waits and cold caches before adding capacity.",
+      "evidence": [
+        "avgMs",
+        "p99Ms",
+        "dbPercent"
+      ]
+    },
+    "N_PLUS_ONE": {
+      "problem": "N+1 queries",
+      "severity": "HIGH",
+      "weight": 1.0,
+      "locate": "maxCallsPerRequest",
+      "summary": "{where} runs about {callsPerRequest} times per request, and the database accounts for {dbPercent}% of the time.",
+      "suggestion": "The loop is issuing one query per item. Load the related rows once with a JOIN, an entity graph, or a single IN query, then match them in memory.",
+      "evidence": [
+        "callsPerRequest",
+        "dbPercent",
+        "avgMs"
+      ]
+    },
+    "SLOW_DATABASE": {
+      "problem": "Slow database call",
+      "severity": "HIGH",
+      "weight": 0.95,
+      "locate": "maxDbRepository",
+      "summary": "{where} spends {dbPercent}% of its time in the database, with an average of {avgMs} ms.",
+      "suggestion": "This is one slow query, not a loop. Check the filter and join columns on {where} for a missing index, and stop selecting columns the caller does not use.",
+      "evidence": [
+        "dbPercent",
+        "avgMs",
+        "p99Ms"
+      ]
+    },
+    "CPU_HOTSPOT": {
+      "problem": "CPU hotspot",
+      "severity": "HIGH",
+      "weight": 0.9,
+      "locate": "maxSelf",
+      "summary": "{where} burns CPU inside the method itself: about {selfPercent}% of the endpoint time is its own work, average {avgMs} ms.",
+      "suggestion": "Open {where} and look for nested loops, large JSON mapping, or repeated compilation of patterns. Move that work out of the request path or do it once.",
+      "evidence": [
+        "selfPercent",
+        "avgMs",
+        "dbPercent"
+      ]
+    },
+    "ERROR_BURST": {
+      "problem": "Error burst",
+      "severity": "HIGH",
+      "weight": 1.0,
+      "locate": "maxErrors",
+      "summary": "{where} is failing on {errorPercent}% of calls in this window.",
+      "suggestion": "Fix the exception at {where} before tuning speed. Guard the failing input, and do not retry a deterministic error.",
+      "evidence": [
+        "errorPercent",
+        "avgMs"
+      ]
+    },
+    "TAIL_LATENCY": {
+      "problem": "Tail latency",
+      "severity": "MEDIUM",
+      "weight": 0.75,
+      "locate": "endpoint",
+      "summary": "{where} is usually fast ({avgMs} ms average) but p99 is {p99Ms} ms.",
+      "suggestion": "The average hides a stall. On {where}, check connection-pool waits, locks, and a cold cache. A timeout or a bound on the slow path will cut the tail.",
+      "evidence": [
+        "avgMs",
+        "p99Ms",
+        "dbPercent"
+      ]
+    },
+    "MEMORY_PRESSURE": {
+      "problem": "Memory pressure",
+      "severity": "MEDIUM",
+      "weight": 0.8,
+      "locate": "maxMemory",
+      "summary": "{where} is allocating about {memoryKb} KB. That allocation, not the database, dominates the endpoint.",
+      "suggestion": "Stop buffering the whole result in {where}. Stream it, page it, or cap the payload so the request does not hold a large graph on the heap.",
+      "evidence": [
+        "memoryKb",
+        "avgMs",
+        "selfPercent"
+      ]
+    },
+    "FRAGMENTED_TRACE": {
+      "problem": "Split trace",
+      "severity": "MEDIUM",
+      "weight": 0.7,
+      "locate": "endpoint",
+      "summary": "{where} shares its trace with other roots, so one user action is being counted as several endpoints.",
+      "suggestion": "A single request is hopping threads without carrying the trace. Pass the monitoring context into the async handoff so the time stays on {where}.",
+      "evidence": [
+        "avgMs",
+        "dbPercent",
+        "callsPerRequest"
+      ]
+    }
+  },
+  "evidence": {
+    "callsPerRequest": "{callsPerRequest} calls per request",
+    "dbPercent": "database is {dbPercent}% of time",
+    "avgMs": "average {avgMs} ms",
+    "p99Ms": "p99 {p99Ms} ms",
+    "errorPercent": "{errorPercent}% of calls fail",
+    "memoryKb": "{memoryKb} KB allocated",
+    "selfPercent": "own time is {selfPercent}% of the endpoint"
+  },
+  "footer": "{modelId} {modelVersion} \u00b7 {inferenceMs} ms \u00b7 holdout accuracy {holdoutAccuracy}",
+  "fixtures": [
+    {
+      "label": "HEALTHY",
+      "confidence": 1.0,
+      "raw": {
+        "calls": 79.1662,
+        "avg_ms": 11.688813,
+        "p95_ms": 18.151027,
+        "p99_ms": 22.417973,
+        "max_ms": 30.537362,
+        "db_ratio": 0.228825,
+        "error_rate": 0.022104,
+        "calls_per_request": 2.695167,
+        "self_ratio": 0.796975,
+        "memory_kb": 885.435268,
+        "fragmented": 0.0,
+        "repository_share": 0.249153,
+        "errors": 2.524292
+      }
+    },
+    {
+      "label": "N_PLUS_ONE",
+      "confidence": 1.0,
+      "raw": {
+        "calls": 616.962994,
+        "avg_ms": 634.43975,
+        "p95_ms": 1095.664762,
+        "p99_ms": 1095.664762,
+        "max_ms": 2591.015525,
+        "db_ratio": 0.497527,
+        "error_rate": 0.007141,
+        "calls_per_request": 152.285607,
+        "self_ratio": 0.098797,
+        "memory_kb": 17064.586802,
+        "fragmented": 0.0,
+        "repository_share": 0.426076,
+        "errors": 2.962529
+      }
+    },
+    {
+      "label": "SLOW_DATABASE",
+      "confidence": 1.0,
+      "raw": {
+        "calls": 306.753725,
+        "avg_ms": 2729.887527,
+        "p95_ms": 3501.812588,
+        "p99_ms": 5417.143524,
+        "max_ms": 8002.383849,
+        "db_ratio": 0.941594,
+        "error_rate": 0.047899,
+        "calls_per_request": 3.892091,
+        "self_ratio": 0.49314,
+        "memory_kb": 6153.198686,
+        "fragmented": 0.0,
+        "repository_share": 0.88578,
+        "errors": 3.139295
+      }
+    },
+    {
+      "label": "CPU_HOTSPOT",
+      "confidence": 0.9982,
+      "raw": {
+        "calls": 312.492687,
+        "avg_ms": 1153.143093,
+        "p95_ms": 2048.101014,
+        "p99_ms": 2048.101014,
+        "max_ms": 2230.66813,
+        "db_ratio": 0.254139,
+        "error_rate": 0.019119,
+        "calls_per_request": 3.211342,
+        "self_ratio": 0.946058,
+        "memory_kb": 22340.303081,
+        "fragmented": 0.0,
+        "repository_share": 0.096949,
+        "errors": 0.351863
+      }
+    },
+    {
+      "label": "ERROR_BURST",
+      "confidence": 1.0,
+      "raw": {
+        "calls": 179.775888,
+        "avg_ms": 249.780243,
+        "p95_ms": 665.638717,
+        "p99_ms": 883.742851,
+        "max_ms": 1696.411212,
+        "db_ratio": 0.455313,
+        "error_rate": 0.513719,
+        "calls_per_request": 3.826194,
+        "self_ratio": 0.424314,
+        "memory_kb": 18363.449977,
+        "fragmented": 0.0,
+        "repository_share": 0.012799,
+        "errors": 300.148752
+      }
+    },
+    {
+      "label": "TAIL_LATENCY",
+      "confidence": 1.0,
+      "raw": {
+        "calls": 280.506974,
+        "avg_ms": 39.171724,
+        "p95_ms": 298.016075,
+        "p99_ms": 1127.255491,
+        "max_ms": 3135.292831,
+        "db_ratio": 0.53648,
+        "error_rate": 0.051112,
+        "calls_per_request": 0.957967,
+        "self_ratio": 0.68329,
+        "memory_kb": 7957.398563,
+        "fragmented": 0.0,
+        "repository_share": 0.255067,
+        "errors": 7.829118
+      }
+    },
+    {
+      "label": "MEMORY_PRESSURE",
+      "confidence": 1.0,
+      "raw": {
+        "calls": 107.41389,
+        "avg_ms": 309.239712,
+        "p95_ms": 432.222134,
+        "p99_ms": 1086.813555,
+        "max_ms": 2028.259845,
+        "db_ratio": 0.300238,
+        "error_rate": 0.023773,
+        "calls_per_request": 2.121345,
+        "self_ratio": 0.777808,
+        "memory_kb": 767216.972767,
+        "fragmented": 0.0,
+        "repository_share": 0.336137,
+        "errors": 1.348275
+      }
+    },
+    {
+      "label": "FRAGMENTED_TRACE",
+      "confidence": 0.9996,
+      "raw": {
+        "calls": 139.906636,
+        "avg_ms": 363.865669,
+        "p95_ms": 887.514852,
+        "p99_ms": 1319.405713,
+        "max_ms": 1852.139862,
+        "db_ratio": 0.37286,
+        "error_rate": 0.035309,
+        "calls_per_request": 7.522505,
+        "self_ratio": 0.409206,
+        "memory_kb": 2520.429165,
+        "fragmented": 1.0,
+        "repository_share": 0.153964,
+        "errors": 1.493709
+      }
+    }
+  ]
+}
